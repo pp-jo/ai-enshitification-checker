@@ -1,6 +1,12 @@
+SCORING_MODE = "combined"
+
 API_URL = (
     "https://aistupidlevel.info/dashboard/scores"
-    "?mode=leaderboard&period=7d&sortBy=combined"
+    f"?mode=leaderboard&period=7d&sortBy={SCORING_MODE}"
+)
+HISTORY_URL = (
+    "https://aistupidlevel.info/dashboard/history/{model_id}"
+    f"?period=7d&sortBy={SCORING_MODE}"
 )
 REQUEST_TIMEOUT = 10
 
@@ -18,7 +24,6 @@ WATCHED_MODELS = [
     "gpt-5.5",
     "gpt-5.4",
     "claude-opus-4-8",
-    "claude-opus-4-7",
     "claude-opus-4-6",
     "claude-sonnet-4-6",
     # Composer 2.5 is not listed separately; API tracks Kimi K2.x as the base model.
@@ -28,5 +33,6 @@ WATCHED_MODELS = [
 LABEL_IMPROVED = "poprawił się"
 LABEL_WORSENED = "pogorszył się"
 LABEL_STABLE = "bez zmian"
+LABEL_NO_DATA = "brak danych"
 
 CUSUM_ARROWS = {"up": "↑", "down": "↓", "stable": "→"}

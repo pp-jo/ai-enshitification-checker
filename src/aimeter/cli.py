@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from aimeter.api import ApiError, fetch_scores, index_by_name
+from aimeter.api import ApiError, fetch_history, fetch_scores, index_by_name
 from aimeter.constants import WATCHED_MODELS
 from aimeter.format import (
     format_header,
@@ -12,7 +12,12 @@ from aimeter.format import (
     format_verbose_v1,
     format_verbose_v2,
 )
-from aimeter.models import ModelResult, analyze_model
+from aimeter.models import (
+    ModelResult,
+    analyze_model,
+    compute_period_stats,
+    extract_history_scores,
+)
 
 
 def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
@@ -39,7 +44,17 @@ def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
 
     for name in models:
         entry = by_name.get(name)
-        result = analyze_model(name, entry)
+        period_stats = None
+        if entry is not None:
+            model_id = entry.get("id")
+            if model_id is not None:
+                try:
+                    history = fetch_history(str(model_id))
+                    period_stats = compute_period_stats(extract_history_scores(history))
+                except ApiError:
+                    pass
+
+        result = analyze_model(name, entry, period_stats=period_stats)
         results.append(result)
 
         if not result.found:
@@ -66,7 +81,7 @@ def main() -> None:
             "Przykłady:\n"
             "  aimeter          — standardowy output\n"
             "  aimeter -v       — + obliczenia Δ, próg, logika [!!]\n"
-            "  aimeter -vv      — + surowe dane z API (dataPoints, CI)\n"
+            "  aimeter -vv      — + statystyki COMBINED 7d i stabilność (API)\n"
             "  aimeter -vvv...  — odpowiednik -vv"
         ),
     )

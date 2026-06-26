@@ -2,43 +2,38 @@
   "success": true,
   "data": [
     {
+      "id": "256",
       "name": "gpt-5.5",
       "currentScore": 47,
-      "periodAvg": 52,
-      "standardError": 10.7,
       "trend": "stable",
       "isStale": false
     },
     {
+      "id": "230",
       "name": "gpt-5.4",
       "currentScore": 62,
-      "periodAvg": 67,
-      "standardError": 6.8,
       "trend": "stable",
       "isStale": false
     },
     {
+      "id": "221",
       "name": "claude-sonnet-4-6",
       "currentScore": 46,
-      "periodAvg": 58,
-      "standardError": 5.5,
       "trend": "down",
       "isStale": false
     },
     {
+      "id": "219",
       "name": "claude-opus-4-8",
       "currentScore": 57,
-      "periodAvg": 55,
-      "standardError": 13.0,
       "trend": "down",
       "isStale": true,
       "staleDuration": "6h"
     },
     {
+      "id": "188",
       "name": "kimi-k2.7-code",
       "currentScore": 66,
-      "periodAvg": 54,
-      "standardError": 8.2,
       "trend": "up",
       "isStale": false
     }

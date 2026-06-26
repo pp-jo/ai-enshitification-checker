@@ -3,6 +3,7 @@ from datetime import datetime
 from aimeter.constants import (
     CUSUM_ARROWS,
     LABEL_IMPROVED,
+    LABEL_NO_DATA,
     LABEL_STABLE,
     LABEL_WORSENED,
     MIN_THRESHOLD,
@@ -84,16 +85,25 @@ def _plural_worsened(count: int) -> str:
     return _polish_plural(count, "pogorszył się", "pogorszyły się", "pogorszyło się")
 
 
+def _plural_no_data(count: int) -> str:
+    return _polish_plural(count, "brak danych", "braki danych", "braków danych")
+
+
 def format_summary(results: list[ModelResult]) -> str:
     found = [r for r in results if r.found]
     improved = sum(1 for r in found if r.label == LABEL_IMPROVED)
     worsened = sum(1 for r in found if r.label == LABEL_WORSENED)
     stable = sum(1 for r in found if r.label == LABEL_STABLE)
+    no_data = sum(1 for r in found if r.label == LABEL_NO_DATA)
 
-    return (
-        f"Podsumowanie: {_plural_improved(improved)}, "
-        f"{_plural_worsened(worsened)}, {stable} bez zmian"
-    )
+    parts = [
+        f"Podsumowanie: {_plural_improved(improved)}",
+        _plural_worsened(worsened),
+        f"{stable} bez zmian",
+    ]
+    if no_data:
+        parts.append(_plural_no_data(no_data))
+    return ", ".join(parts)
 
 
 _CUSUM_DESC = {
@@ -165,23 +175,23 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
 
 
 def format_verbose_v2(result: ModelResult) -> list[str]:
-    """Surowe dane z API — poziom -vv."""
+    """Statystyki COMBINED 7d (liczone lokalnie) + metadane z API — poziom -vv."""
     if not result.found:
         return []
 
     parts: list[str] = []
 
     if result.data_points is not None:
-        parts.append(f"punkty danych: {result.data_points}")
-    if result.stability is not None:
-        parts.append(f"stabilność: {result.stability:.0f}/100")
+        parts.append(f"punkty COMBINED 7d: {result.data_points}")
     if result.confidence_lower is not None and result.confidence_upper is not None:
         cl = f"{result.confidence_lower:.0f}"
         cu = f"{result.confidence_upper:.0f}"
-        parts.append(f"CI: [{cl}, {cu}]")
+        parts.append(f"CI (COMBINED 7d): [{cl}, {cu}]")
+    if result.stability is not None:
+        parts.append(f"stabilność (API): {result.stability:.0f}/100")
 
     if not parts:
-        return [f"{_INDENT}→ brak dodatkowych danych z API"]
+        return [f"{_INDENT}→ brak dodatkowych statystyk"]
     return [f"{_INDENT}→ {' │ '.join(parts)}"]
 
 

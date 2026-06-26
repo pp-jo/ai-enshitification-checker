@@ -3,7 +3,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from aimeter.constants import API_URL, REQUEST_TIMEOUT
+from aimeter.constants import API_URL, HISTORY_URL, REQUEST_TIMEOUT
 
 
 class ApiError(Exception):
@@ -12,7 +12,7 @@ class ApiError(Exception):
         super().__init__(message)
 
 
-def fetch_scores(url: str = API_URL) -> dict[str, Any]:
+def _fetch_json(url: str) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT) as response:
             body = response.read().decode()
@@ -29,9 +29,21 @@ def fetch_scores(url: str = API_URL) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ApiError("[ERROR] API response is not a JSON object")
 
+    return payload
+
+
+def fetch_scores(url: str = API_URL) -> dict[str, Any]:
+    payload = _fetch_json(url)
     if not payload.get("success"):
         raise ApiError("[ERROR] API returned success=false")
+    return payload
 
+
+def fetch_history(model_id: str, url: str | None = None) -> dict[str, Any]:
+    history_url = url or HISTORY_URL.format(model_id=model_id)
+    payload = _fetch_json(history_url)
+    if not payload.get("success"):
+        raise ApiError("[ERROR] History API returned success=false")
     return payload
 
 

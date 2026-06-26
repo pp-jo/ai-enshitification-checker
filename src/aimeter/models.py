@@ -1,15 +1,63 @@
+import math
+import statistics
 from dataclasses import dataclass
 from typing import Any
 
 from aimeter.constants import (
     CUSUM_ARROWS,
     LABEL_IMPROVED,
+    LABEL_NO_DATA,
     LABEL_STABLE,
     LABEL_WORSENED,
     MIN_THRESHOLD,
     SE_THRESHOLD_SCALE,
     STRONG_SIGNAL_MULTIPLIER,
 )
+
+
+@dataclass
+class PeriodStats:
+    period_avg: float
+    standard_error: float | None
+    data_points: int
+    confidence_lower: float | None = None
+    confidence_upper: float | None = None
+
+
+def extract_history_scores(history_payload: dict[str, Any]) -> list[float]:
+    data = history_payload.get("data")
+    if not isinstance(data, list):
+        return []
+
+    scores: list[float] = []
+    for point in data:
+        if not isinstance(point, dict):
+            continue
+        score = point.get("score")
+        if isinstance(score, (int, float)):
+            scores.append(float(score))
+    return scores
+
+
+def compute_period_stats(scores: list[float]) -> PeriodStats | None:
+    if not scores:
+        return None
+
+    n = len(scores)
+    period_avg = statistics.mean(scores)
+    if n < 2:
+        return PeriodStats(period_avg=period_avg, standard_error=None, data_points=n)
+
+    stdev = statistics.stdev(scores)
+    standard_error = stdev / math.sqrt(n)
+    ci_half = 1.96 * standard_error
+    return PeriodStats(
+        period_avg=period_avg,
+        standard_error=standard_error,
+        data_points=n,
+        confidence_lower=period_avg - ci_half,
+        confidence_upper=period_avg + ci_half,
+    )
 
 
 @dataclass
@@ -83,7 +131,12 @@ def parse_stale_hours(stale_duration: Any) -> int | None:
     return None
 
 
-def analyze_model(name: str, entry: dict[str, Any] | None) -> ModelResult:
+def analyze_model(
+    name: str,
+    entry: dict[str, Any] | None,
+    *,
+    period_stats: PeriodStats | None = None,
+) -> ModelResult:
     if entry is None:
         return ModelResult(
             name=name,
@@ -101,17 +154,25 @@ def analyze_model(name: str, entry: dict[str, Any] | None) -> ModelResult:
         )
 
     current_score = entry.get("currentScore")
-    period_avg = entry.get("periodAvg")
-    standard_error = entry.get("standardError")
     trend = entry.get("trend")
     is_stale = bool(entry.get("isStale", False))
     stale_hours = parse_stale_hours(entry.get("staleDuration"))
-    data_points = entry.get("dataPoints")
     stability = entry.get("stability")
-    confidence_lower = entry.get("confidenceLower")
-    confidence_upper = entry.get("confidenceUpper")
 
-    if current_score is None or period_avg is None:
+    if period_stats is not None:
+        period_avg = period_stats.period_avg
+        standard_error = period_stats.standard_error
+        data_points = period_stats.data_points
+        confidence_lower = period_stats.confidence_lower
+        confidence_upper = period_stats.confidence_upper
+    else:
+        period_avg = None
+        standard_error = None
+        data_points = None
+        confidence_lower = None
+        confidence_upper = None
+
+    if period_avg is None or current_score is None:
         return ModelResult(
             name=name,
             current_score=current_score,
@@ -122,7 +183,7 @@ def analyze_model(name: str, entry: dict[str, Any] | None) -> ModelResult:
             stale_hours=stale_hours,
             delta=None,
             threshold=None,
-            label=LABEL_STABLE,
+            label=LABEL_NO_DATA,
             strong_signal=False,
             data_points=data_points,
             stability=stability,
