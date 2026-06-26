@@ -4,6 +4,8 @@ CLI do sprawdzania trendów modeli AI na podstawie publicznego API [AI Stupid Me
 
 Porównuje bieżący wynik z 7-dniową średnią i wypisuje krótkie podsumowanie w terminalu.
 
+Vibecoded prototyp.
+
 ## Instalacja
 
 ```bash
