@@ -29,7 +29,8 @@ uv run aimeter
 
 Obsługuje do 2 poziomów verbosity (cokolwiek ponad -vv traktowane jest jak -vv)
 
-W przypadku potrzeby aktualizacji należy użyć:
+
+W przypadku aktualizacji należy użyć:
 
 ```bash
 uv tool upgrade aimeter
