@@ -20,7 +20,10 @@ uv sync --dev
 
 ```bash
 aimeter
-# lub w repo:
+```
+
+lub w repo:
+```bash
 uv run aimeter
 ```
 
