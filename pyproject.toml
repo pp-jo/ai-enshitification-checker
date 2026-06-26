@@ -1,6 +1,6 @@
 [project]
 name = "aimeter"
-version = "0.1.0"
+version = "0.2.0"
 description = "CLI tool to check AI model scores from AI Stupid Meter"
 requires-python = ">=3.11"
 dependencies = []
