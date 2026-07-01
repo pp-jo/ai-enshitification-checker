@@ -35,5 +35,6 @@ LABEL_IMPROVED = "poprawił się"
 LABEL_WORSENED = "pogorszył się"
 LABEL_STABLE = "bez zmian"
 LABEL_NO_DATA = "brak danych"
+CUMUL_SUM_LABEL = "Cumul. sum"
 
 CUSUM_ARROWS = {"up": "↑", "down": "↓", "stable": "→"}

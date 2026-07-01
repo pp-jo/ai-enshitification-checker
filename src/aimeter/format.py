@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from aimeter.constants import (
+    CUMUL_SUM_LABEL,
     CUSUM_ARROWS,
     LABEL_IMPROVED,
     LABEL_NO_DATA,
@@ -163,13 +164,15 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
             if big_drop
             else f"|Δ|({delta_abs:.0f}) < {mult}×próg({threshold_x:.1f})"
         )
-        cond_cusum = "CUSUM:↓ ✓" if cusum_down else "CUSUM:↓? nie"
+        cond_cusum = (
+            f"{CUMUL_SUM_LABEL}:↓ ✓" if cusum_down else f"{CUMUL_SUM_LABEL}:↓? nie"
+        )
         verdict = "tak → [!!]" if result.strong_signal else "nie → brak [!!]"
         lines.append(f"{_INDENT}→ [!!]: {cond_drop}   {cond_cusum}   →  {verdict}")
 
     arrow = CUSUM_ARROWS.get(result.trend or "", "→")
     desc = _CUSUM_DESC.get(result.trend or "", "nieznany trend")
-    lines.append(f"{_INDENT}→ CUSUM:{arrow}  {desc}")
+    lines.append(f"{_INDENT}→ {CUMUL_SUM_LABEL}:{arrow}  {desc}")
 
     return lines
 
@@ -199,10 +202,10 @@ def format_legend() -> str:
     separator = "─" * 78
     se_max = f"{SE_HIGH_THRESHOLD:.0f}"
     text = (
-        "[!!] silny sygnał: duży Δ lub CUSUM:↓"
+        f"[!!] silny sygnał: duży Δ lub {CUMUL_SUM_LABEL}:↓"
         "   │   "
         f"SE↕ błąd pomiaru wysoki (SE>{se_max}), wynik mniej wiarygodny"
         "   │   "
-        "CUSUM:↑↓→ trend ostatnich ~48h"
+        f"{CUMUL_SUM_LABEL}:↑↓→ trend ostatnich ~48h"
     )
     return f"{separator}\n{text}"

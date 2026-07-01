@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from aimeter.constants import (
+    CUMUL_SUM_LABEL,
     CUSUM_ARROWS,
     LABEL_IMPROVED,
     LABEL_NO_DATA,
@@ -107,7 +108,7 @@ def compute_strong_signal(
 
 def format_cusum(trend: str | None) -> str:
     arrow = CUSUM_ARROWS.get(trend or "", "→")
-    return f"CUSUM:{arrow}"
+    return f"{CUMUL_SUM_LABEL}:{arrow}"
 
 
 def parse_stale_hours(stale_duration: Any) -> int | None:

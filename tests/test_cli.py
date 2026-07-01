@@ -213,7 +213,7 @@ def test_run_verbose_v1_shows_calculations(
     assert "→ Δ = wynik(" in output
     assert "→ próg = max(5," in output
     assert "→ ocena:" in output
-    assert "→ CUSUM:" in output
+    assert "→ Cumul. sum:" in output
 
 
 def test_run_verbose_v2_shows_combined_fields(
@@ -327,7 +327,7 @@ def test_format_model_line_strong_signal() -> None:
 
     assert line == (
         "claude-sonnet-4-6:  46 (Δ-12) [!!]  | pogorszył się  | 7d avg 58  "
-        "| SE ±0.0  | CUSUM:↓"
+        "| SE ±0.0  | Cumul. sum:↓"
     )
 
 
@@ -338,7 +338,7 @@ def test_format_model_line_stale_and_high_se() -> None:
 
     assert "claude-opus-4-8:  57 (Δ+2)  | bez zmian  | 7d avg 55  " in line
     assert "SE↕" in line
-    assert "CUSUM:↓  | stale 6h" in line
+    assert "Cumul. sum:↓  | stale 6h" in line
 
 
 def test_format_model_line_high_se_only() -> None:
@@ -348,7 +348,7 @@ def test_format_model_line_high_se_only() -> None:
 
     assert "gpt-5.5:  47 (Δ-5)  | bez zmian  | 7d avg 52  " in line
     assert "SE↕" in line
-    assert "CUSUM:→" in line
+    assert "Cumul. sum:→" in line
 
 
 def test_parse_stale_hours_rejects_bool() -> None:
