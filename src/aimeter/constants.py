@@ -26,6 +26,7 @@ WATCHED_MODELS = [
     "claude-opus-4-8",
     "claude-opus-4-6",
     "claude-sonnet-4-6",
+    "claude-sonnet-5",
     # Composer 2.5 is not listed separately; API tracks Kimi K2.x as the base model.
     "kimi-k2.7-code",
 ]
