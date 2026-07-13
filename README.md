@@ -56,8 +56,8 @@ Skrypt pobiera z leaderboardu (`sortBy=combined`):
 - `currentScore` — bieżący wynik COMBINED
 - `trend` — kierunek CUSUM (krótkoterminowy trend z ostatnich ~48h)
 
-**7d średnia** liczymy sami z historii wykresu:
-`dashboard/history/{id}?period=7d&sortBy=combined` — średnia arytmetyczna punktów `score`
+**7d średnią i 7d max** liczymy sami z historii wykresu:
+`dashboard/history/{id}?period=7d&sortBy=combined` — średnia arytmetyczna i najwyższa wartość punktów `score`
 z ostatnich 7 dni (~42 pomiary co 4h). Nie używamy `periodAvg` z API leaderboardu, bo miesza
 COMBINED z TOOLING i REASONING i zaniża baseline względem wykresu.
 

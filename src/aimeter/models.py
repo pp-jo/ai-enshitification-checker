@@ -19,6 +19,7 @@ from aimeter.constants import (
 @dataclass
 class PeriodStats:
     period_avg: float
+    period_max: float
     standard_error: float | None
     data_points: int
     confidence_lower: float | None = None
@@ -46,14 +47,21 @@ def compute_period_stats(scores: list[float]) -> PeriodStats | None:
 
     n = len(scores)
     period_avg = statistics.mean(scores)
+    period_max = max(scores)
     if n < 2:
-        return PeriodStats(period_avg=period_avg, standard_error=None, data_points=n)
+        return PeriodStats(
+            period_avg=period_avg,
+            period_max=period_max,
+            standard_error=None,
+            data_points=n,
+        )
 
     stdev = statistics.stdev(scores)
     standard_error = stdev / math.sqrt(n)
     ci_half = 1.96 * standard_error
     return PeriodStats(
         period_avg=period_avg,
+        period_max=period_max,
         standard_error=standard_error,
         data_points=n,
         confidence_lower=period_avg - ci_half,
@@ -76,6 +84,7 @@ class ModelResult:
     strong_signal: bool
     found: bool = True
     data_points: int | None = None
+    period_max: float | None = None
     stability: float | None = None
     confidence_lower: float | None = None
     confidence_upper: float | None = None
@@ -162,12 +171,14 @@ def analyze_model(
 
     if period_stats is not None:
         period_avg = period_stats.period_avg
+        period_max = period_stats.period_max
         standard_error = period_stats.standard_error
         data_points = period_stats.data_points
         confidence_lower = period_stats.confidence_lower
         confidence_upper = period_stats.confidence_upper
     else:
         period_avg = None
+        period_max = None
         standard_error = None
         data_points = None
         confidence_lower = None
@@ -187,6 +198,7 @@ def analyze_model(
             label=LABEL_NO_DATA,
             strong_signal=False,
             data_points=data_points,
+            period_max=period_max,
             stability=stability,
             confidence_lower=confidence_lower,
             confidence_upper=confidence_upper,
@@ -210,6 +222,7 @@ def analyze_model(
         label=label,
         strong_signal=strong_signal,
         data_points=data_points,
+        period_max=period_max,
         stability=stability,
         confidence_lower=confidence_lower,
         confidence_upper=confidence_upper,

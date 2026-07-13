@@ -71,6 +71,7 @@ def test_compute_period_stats() -> None:
     stats = compute_period_stats([12, 12, 12, 12, 12, 12, 92, 92, 92, 92, 92, 92])
     assert stats is not None
     assert stats.period_avg == 52
+    assert stats.period_max == 92
     assert stats.data_points == 12
     assert stats.standard_error is not None
     assert stats.standard_error > 10
@@ -258,7 +259,7 @@ def test_run_history_failure_shows_no_data_label(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "gpt-5.5:  47 (Δ—)  | brak danych  | 7d avg —" in output
+    assert "gpt-5.5:  47 (Δ—)  | brak danych  | 7d avg —  | 7d max —" in output
     assert "Podsumowanie:" in output
     assert "1 brak danych" in output
     assert "0 bez zmian, 1 brak danych" in output
@@ -327,6 +328,7 @@ def test_format_model_line_strong_signal() -> None:
 
     assert line == (
         "claude-sonnet-4-6:  46 (Δ-12) [!!]  | pogorszył się  | 7d avg 58  "
+        "| 7d max 58  "
         "| SE ±0.0  | Cumul. sum:↓"
     )
 
@@ -336,7 +338,10 @@ def test_format_model_line_stale_and_high_se() -> None:
 
     line = format_model_line(result)
 
-    assert "claude-opus-4-8:  57 (Δ+2)  | bez zmian  | 7d avg 55  " in line
+    assert (
+        "claude-opus-4-8:  57 (Δ+2)  | bez zmian  | 7d avg 55  | 7d max 100  "
+        in line
+    )
     assert "SE↕" in line
     assert "Cumul. sum:↓  | stale 6h" in line
 
@@ -346,7 +351,7 @@ def test_format_model_line_high_se_only() -> None:
 
     line = format_model_line(result)
 
-    assert "gpt-5.5:  47 (Δ-5)  | bez zmian  | 7d avg 52  " in line
+    assert "gpt-5.5:  47 (Δ-5)  | bez zmian  | 7d avg 52  | 7d max 92  " in line
     assert "SE↕" in line
     assert "Cumul. sum:→" in line
 

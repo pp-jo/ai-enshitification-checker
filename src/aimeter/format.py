@@ -41,6 +41,7 @@ def format_model_line(result: ModelResult) -> str:
     marker = " [!!]" if result.strong_signal else ""
 
     avg = f"{result.period_avg:.0f}" if result.period_avg is not None else "—"
+    period_max = f"{result.period_max:.0f}" if result.period_max is not None else "—"
     se = format_se(result.standard_error)
     cusum = format_cusum(result.trend)
 
@@ -48,6 +49,7 @@ def format_model_line(result: ModelResult) -> str:
         f"{result.name}:  {score} {delta_text}{marker}",
         f"| {result.label}",
         f"| 7d avg {avg}",
+        f"| 7d max {period_max}",
         f"| {se}",
         f"| {cusum}",
     ]
