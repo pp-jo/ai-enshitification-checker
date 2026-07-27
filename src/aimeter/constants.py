@@ -21,10 +21,13 @@ STRONG_SIGNAL_MULTIPLIER = 2.0
 SE_HIGH_THRESHOLD = 10.0
 
 WATCHED_MODELS = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
     "gpt-5.5",
-    "gpt-5.4",
+    "claude-fable-5",
+    "claude-opus-5",
     "claude-opus-4-8",
-    "claude-opus-4-6",
     "claude-sonnet-4-6",
     "claude-sonnet-5",
     # Composer 2.5 is not listed separately; API tracks Kimi K2.x as the base model.
