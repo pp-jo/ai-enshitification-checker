@@ -125,16 +125,16 @@ def test_requests_are_deduplicated_per_run_and_failures_keep_model_context(
         )]
         row_names = [line.removeprefix("[WARN] ").split(":", 1)[0] for line in rows]
         assert row_names == watched
-        assert "healthy:  55 (Δ+5)  | poprawił się" in output.out
+        assert "healthy:  55 (Δ+5)  | improved" in output.out
         if http_status is None:
-            assert "shared:  40 (Δ-10) [!!]  | pogorszył się" in output.out
-            assert output.out.count("alias:  55 (Δ+5)  | poprawił się") == 2
+            assert "shared:  40 (Δ-10) [!!]  | worsened" in output.out
+            assert output.out.count("alias:  55 (Δ+5)  | improved") == 2
             assert output.err == ""
         else:
-            assert output.out.count("alias:  55 (Δ—)  | brak danych") == 2
-            assert "shared:  40 (Δ—)  | brak danych" in output.out
+            assert output.out.count("alias:  55 (Δ—)  | no data") == 2
+            assert "shared:  40 (Δ—)  | no data" in output.out
             assert output.err.splitlines() == [
-                f"[WARN] {name}: nie udało się pobrać historii (HTTP {http_status})"
+                f"[WARN] {name}: failed to fetch history (HTTP {http_status})"
                 for name in ("alias", "shared")
             ]
 
@@ -193,11 +193,11 @@ def test_reverse_completion_preserves_report_and_diagnostic_order(
     assert completed == ["third", "second", "first"]
     positions = [output.out.index(f"{name}:") for name in ("first", "second", "third")]
     assert positions == sorted(positions)
-    assert "first:  55 (Δ+5)  | poprawił się  | 7d avg 50" in output.out
-    assert "second:  55 (Δ-5)  | pogorszył się  | 7d avg 60" in output.out
-    assert "third:  55 (Δ+0)  | bez zmian  | 7d avg 55" in output.out
+    assert "first:  55 (Δ+5)  | improved  | 7d avg 50" in output.out
+    assert "second:  55 (Δ-5)  | worsened  | 7d avg 60" in output.out
+    assert "third:  55 (Δ+0)  | unchanged  | 7d avg 55" in output.out
     assert output.err.splitlines() == [
-        f"[WARN] {name}: odrzucone punkty historii: {count}"
+        f"[WARN] {name}: discarded history points: {count}"
         for count, name in enumerate(("first", "second", "third"), start=1)
     ]
 
@@ -272,7 +272,7 @@ def test_progress_is_flushed_before_fetching_only_to_interactive_stderr(
     monkeypatch.setattr(stderr, "flush", flush)
     monkeypatch.setattr(sys, "stdout", stdout)
     monkeypatch.setattr(sys, "stderr", stderr)
-    progress = "[INFO] Pobieranie historii modeli…\n" if stderr_tty else ""
+    progress = "[INFO] Fetching model histories…\n" if stderr_tty else ""
     leaderboard = parse_leaderboard({
         "success": True,
         "data": [{"name": "healthy", "id": "1", "currentScore": 55}],
@@ -289,5 +289,5 @@ def test_progress_is_flushed_before_fetching_only_to_interactive_stderr(
 
     assert run(["healthy"], verbosity=verbosity) == 0
     assert "healthy:  55 (Δ+5)" in stdout.getvalue()
-    assert "Pobieranie" not in stdout.getvalue()
+    assert "Fetching" not in stdout.getvalue()
     assert stderr.getvalue() == progress

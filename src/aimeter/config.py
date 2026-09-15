@@ -31,20 +31,20 @@ def load_watched_models(config_path: str | Path | None = None) -> list[str]:
     except FileNotFoundError as exc:
         if config_path is None:
             return WATCHED_MODELS.copy()
-        raise ConfigError(f"Nie znaleziono pliku konfiguracji: {path}") from exc
+        raise ConfigError(f"Configuration file not found: {path}") from exc
     except OSError as exc:
         raise ConfigError(
-            f"Nie można odczytać konfiguracji {path}: {exc.strerror or exc}"
+            f"Cannot read configuration {path}: {exc.strerror or exc}"
         ) from exc
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
-        raise ConfigError(f"Błędny plik TOML {path}: {exc}") from exc
+        raise ConfigError(f"Invalid TOML file {path}: {exc}") from exc
 
     models = config.get("watched_models")
     if not isinstance(models, list) or any(
         not isinstance(name, str) or not name.strip() for name in models
     ):
         raise ConfigError(
-            f"Błędna konfiguracja {path}: watched_models musi być listą "
-            "niepustych nazw modeli (np. watched_models = [\"gpt-5.5\"])."
+            f"Invalid configuration {path}: watched_models must be a list "
+            "of non-empty model names (e.g. watched_models = [\"gpt-5.5\"])."
         )
     return [name.strip() for name in models]

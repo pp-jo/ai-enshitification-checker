@@ -4,12 +4,19 @@ from dataclasses import replace
 import pytest
 
 from aimeter.constants import (
+    CUMUL_SUM_LABEL,
     LABEL_IMPROVED,
     LABEL_NO_DATA,
     LABEL_STABLE,
     LABEL_WORSENED,
+    SE_HIGH_THRESHOLD,
 )
-from aimeter.format import format_model_line, format_summary, format_verbose_v1
+from aimeter.format import (
+    format_legend,
+    format_model_line,
+    format_summary,
+    format_verbose_v1,
+)
 from aimeter.models import ModelResult, Trend, analyze_model, compute_period_stats
 from aimeter.parsing import parse_leaderboard
 
@@ -42,7 +49,7 @@ def test_trend_presentation_distinguishes_unknown_from_stable(
     assert f"Cumul. sum:{arrow}" in format_model_line(result)
     verbose = "\n".join(format_verbose_v1(result))
     assert f"Cumul. sum:{arrow}" in verbose
-    assert ("brak informacji o trendzie" in verbose) == (arrow == "?")
+    assert ("no trend information" in verbose) == (arrow == "?")
 
 
 @pytest.mark.parametrize("missing_field", ["current_score", "period_avg"])
@@ -54,7 +61,7 @@ def test_verbose_calculations_check_required_scores(missing_field: str) -> None:
         "example", entry, period_stats=compute_period_stats([50.0, 50.0])
     )
     result = replace(result, **{missing_field: None})
-    assert "brak wystarczających danych" in "\n".join(format_verbose_v1(result))
+    assert "not enough data" in "\n".join(format_verbose_v1(result))
 
 
 def _result_with_label(label: str) -> ModelResult:
@@ -77,19 +84,19 @@ def _result_with_label(label: str) -> ModelResult:
     [
         (
             1, 0, 2, 0,
-            "Podsumowanie: 1 poprawił się, 0 pogorszyło się, 2 bez zmian",
+            "Summary: 1 improved, 0 worsened, 2 unchanged",
         ),
         (
             2, 1, 0, 0,
-            "Podsumowanie: 2 poprawiły się, 1 pogorszył się, 0 bez zmian",
+            "Summary: 2 improved, 1 worsened, 0 unchanged",
         ),
         (
             0, 0, 1, 2,
-            "Podsumowanie: 0 poprawiło się, 0 pogorszyło się, 1 bez zmian, 2 braki danych",
+            "Summary: 0 improved, 0 worsened, 1 unchanged, 2 no data",
         ),
     ],
 )
-def test_format_summary_pluralization(
+def test_format_summary_counts(
     improved: int, worsened: int, stable: int, no_data: int, expected: str
 ) -> None:
     results = (
@@ -109,7 +116,7 @@ def test_format_model_line_strong_signal(
     line = format_model_line(result)
 
     assert line == (
-        "claude-sonnet-4-6:  46 (Δ-12) [!!]  | pogorszył się  | 7d avg 58  "
+        "claude-sonnet-4-6:  46 (Δ-12) [!!]  | worsened  | 7d avg 58  "
         "| 7d max 58  "
         "| SE ±0.0  | Cumul. sum:↓"
     )
@@ -123,7 +130,7 @@ def test_format_model_line_stale_and_high_se(
     line = format_model_line(result)
 
     assert (
-        "claude-opus-4-8:  57 (Δ+2)  | bez zmian  | 7d avg 55  | 7d max 100  "
+        "claude-opus-4-8:  57 (Δ+2)  | unchanged  | 7d avg 55  | 7d max 100  "
         in line
     )
     assert "SE↕" in line
@@ -137,7 +144,7 @@ def test_format_model_line_high_se_only(
 
     line = format_model_line(result)
 
-    assert "gpt-5.5:  47 (Δ-5)  | bez zmian  | 7d avg 52  | 7d max 92  " in line
+    assert "gpt-5.5:  47 (Δ-5)  | unchanged  | 7d avg 52  | 7d max 92  " in line
     assert "SE↕" in line
     assert "Cumul. sum:→" in line
 
@@ -153,12 +160,12 @@ def _signal_result(delta: float, trend: Trend | None = "stable") -> ModelResult:
 @pytest.mark.parametrize(
     "delta,trend,strong,reason",
     [
-        (-6, "stable", False, "|Δ|(6) < 2×próg(10.0)   Cumul. sum:↓? nie   →  nie → brak [!!]"),
-        (-10, "stable", True, "|Δ|(10.0) ≥ 2×próg(10.0) ✓   Cumul. sum:↓? nie   →  tak → [!!]"),
-        (-6, "down", True, "|Δ|(6) < 2×próg(10.0)   Cumul. sum:↓ ✓   →  tak → [!!]"),
-        (-10, "down", True, "|Δ|(10.0) ≥ 2×próg(10.0) ✓   Cumul. sum:↓ ✓   →  tak → [!!]"),
-        (10, "down", False, "nie dotyczy (ocena ≠ pogorszył się)"),
-        (0, "down", False, "nie dotyczy (ocena ≠ pogorszył się)"),
+        (-6, "stable", False, "|Δ|(6) < 2×threshold(10.0)   Cumul. sum:↓? no   →  no → no [!!]"),
+        (-10, "stable", True, "|Δ|(10.0) ≥ 2×threshold(10.0) ✓   Cumul. sum:↓? no   →  yes → [!!]"),
+        (-6, "down", True, "|Δ|(6) < 2×threshold(10.0)   Cumul. sum:↓ ✓   →  yes → [!!]"),
+        (-10, "down", True, "|Δ|(10.0) ≥ 2×threshold(10.0) ✓   Cumul. sum:↓ ✓   →  yes → [!!]"),
+        (10, "down", False, "not applicable (label ≠ worsened)"),
+        (0, "down", False, "not applicable (label ≠ worsened)"),
     ],
 )
 def test_signal_marker_and_explanation_share_the_same_reasons(
@@ -172,16 +179,16 @@ def test_signal_marker_and_explanation_share_the_same_reasons(
 @pytest.mark.parametrize(
     "delta,label,comparison",
     [
-        (4.9, LABEL_STABLE, "|Δ|(4.9) < próg(5.0)"),
-        (4.99, LABEL_STABLE, "|Δ|(≈5.0), próg(≈5.0): poniżej progu przed zaokrągleniem"),
-        (5, LABEL_IMPROVED, "Δ(5.0) ≥ próg(5.0)"),
-        (5.01, LABEL_IMPROVED, "Δ(≈5.0), próg(≈5.0): powyżej progu przed zaokrągleniem"),
-        (5.1, LABEL_IMPROVED, "Δ(5.1) ≥ próg(5.0)"),
-        (-4.9, LABEL_STABLE, "|Δ|(4.9) < próg(5.0)"),
-        (-4.99, LABEL_STABLE, "|Δ|(≈5.0), próg(≈5.0): poniżej progu przed zaokrągleniem"),
-        (-5, LABEL_WORSENED, "Δ(-5.0) ≤ −próg(5.0)"),
-        (-5.01, LABEL_WORSENED, "Δ(≈-5.0), −próg(≈5.0): poniżej progu przed zaokrągleniem"),
-        (-5.1, LABEL_WORSENED, "Δ(-5.1) ≤ −próg(5.0)"),
+        (4.9, LABEL_STABLE, "|Δ|(4.9) < threshold(5.0)"),
+        (4.99, LABEL_STABLE, "|Δ|(≈5.0), threshold(≈5.0): below the threshold before rounding"),
+        (5, LABEL_IMPROVED, "Δ(5.0) ≥ threshold(5.0)"),
+        (5.01, LABEL_IMPROVED, "Δ(≈5.0), threshold(≈5.0): above the threshold before rounding"),
+        (5.1, LABEL_IMPROVED, "Δ(5.1) ≥ threshold(5.0)"),
+        (-4.9, LABEL_STABLE, "|Δ|(4.9) < threshold(5.0)"),
+        (-4.99, LABEL_STABLE, "|Δ|(≈5.0), threshold(≈5.0): below the threshold before rounding"),
+        (-5, LABEL_WORSENED, "Δ(-5.0) ≤ −threshold(5.0)"),
+        (-5.01, LABEL_WORSENED, "Δ(≈-5.0), −threshold(≈5.0): below the threshold before rounding"),
+        (-5.1, LABEL_WORSENED, "Δ(-5.1) ≤ −threshold(5.0)"),
     ],
 )
 def test_verbose_label_boundary_is_not_hidden_by_rounding(
@@ -190,23 +197,23 @@ def test_verbose_label_boundary_is_not_hidden_by_rounding(
     result = _signal_result(delta)
     assert result.label == label
     verbose = format_verbose_v1(result)
-    assert f"    → ocena: {comparison}  →  {label}" in verbose
+    assert f"    → label: {comparison}  →  {label}" in verbose
     if delta in (-5, 5):
-        assert verbose[0].startswith("    → Δ = wynik(")
+        assert verbose[0].startswith("    → Δ = score(")
         assert "≈" not in verbose[0]
     else:
-        assert verbose[0].startswith("    → Δ ≈ wynik(")
+        assert verbose[0].startswith("    → Δ ≈ score(")
         assert verbose[0].endswith("≈ +5" if delta > 0 else "≈ -5")
 
 
 @pytest.mark.parametrize(
     "delta,strong,comparison",
     [
-        (-9.9, False, "|Δ|(9.9) < 2×próg(10.0)"),
-        (-9.99, False, "|Δ|(≈10.0), 2×próg(≈10.0): poniżej progu przed zaokrągleniem"),
-        (-10, True, "|Δ|(10.0) ≥ 2×próg(10.0) ✓"),
-        (-10.01, True, "|Δ|(≈10.0), 2×próg(≈10.0): powyżej progu przed zaokrągleniem ✓"),
-        (-10.1, True, "|Δ|(10.1) ≥ 2×próg(10.0) ✓"),
+        (-9.9, False, "|Δ|(9.9) < 2×threshold(10.0)"),
+        (-9.99, False, "|Δ|(≈10.0), 2×threshold(≈10.0): below the threshold before rounding"),
+        (-10, True, "|Δ|(10.0) ≥ 2×threshold(10.0) ✓"),
+        (-10.01, True, "|Δ|(≈10.0), 2×threshold(≈10.0): above the threshold before rounding ✓"),
+        (-10.1, True, "|Δ|(10.1) ≥ 2×threshold(10.0) ✓"),
     ],
 )
 def test_verbose_large_drop_boundary_matches_marker_and_verdict(
@@ -214,9 +221,9 @@ def test_verbose_large_drop_boundary_matches_marker_and_verdict(
 ) -> None:
     result = _signal_result(delta)
     assert (" [!!]" in format_model_line(result)) is strong
-    verdict = "tak → [!!]" if strong else "nie → brak [!!]"
+    verdict = "yes → [!!]" if strong else "no → no [!!]"
     assert (
-        f"    → [!!]: {comparison}   Cumul. sum:↓? nie   →  {verdict}"
+        f"    → [!!]: {comparison}   Cumul. sum:↓? no   →  {verdict}"
         in format_verbose_v1(result)
     )
 
@@ -233,6 +240,19 @@ def test_unknown_trend_does_not_confirm_or_block_the_drop_reason(
     result = analyze_model("example", entry, period_stats=compute_period_stats([0.0]))
     assert (" [!!]" in format_model_line(result)) is strong
     verbose = "\n".join(format_verbose_v1(result))
-    assert "Cumul. sum:↓? nie" in verbose
+    assert "Cumul. sum:↓? no" in verbose
     assert "Cumul. sum:↓ ✓" not in verbose
     assert "Cumul. sum:?" in verbose
+
+
+def test_legend_fits_separator_width() -> None:
+    legend = format_legend()
+    lines = legend.splitlines()
+    assert lines[0] == "─" * 78
+    assert all(len(line) <= 78 for line in lines)
+    assert lines[1:] == [
+        f"[!!] strong signal: large Δ or {CUMUL_SUM_LABEL}:↓",
+        f"SE↕ high measurement error (SE>{SE_HIGH_THRESHOLD:.0f}), score is less reliable",
+        f"{CUMUL_SUM_LABEL}:↑↓→ trend over the last ~48h",
+        f"{CUMUL_SUM_LABEL}:? no trend information",
+    ]

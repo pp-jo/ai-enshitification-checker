@@ -34,7 +34,7 @@ def report_responses(
     [
         pytest.param(
             urllib.error.HTTPError("url", 503, "unavailable", None, None),
-            "request_error", "nie udało się pobrać historii (HTTP 503)", 0, id="http-503",
+            "request_error", "failed to fetch history (HTTP 503)", 0, id="http-503",
         ),
         pytest.param(
             TimeoutError("deadline exceeded"),
@@ -56,13 +56,13 @@ def report_responses(
         ),
         pytest.param(
             b'{"success":true,"data":[{"score":true},{"score":"50"}]}',
-            "invalid_data", "historia nie zawiera poprawnych punktów", 2,
+            "invalid_data", "history contains no valid points", 2,
             id="all-points-invalid",
         ),
         pytest.param(
             b'{"success":true,"data":['
             b'{"score":1e308},{"score":-1e308},{"score":true}]}',
-            "numeric_error", "błąd obliczeń statystyk historii", 1, id="numeric",
+            "numeric_error", "history statistics calculation error", 1, id="numeric",
         ),
     ],
 )
@@ -85,18 +85,18 @@ def test_history_failure_warns_once_and_preserves_partial_report(
 
     assert run(["partial", "healthy"], verbosity=verbosity) == 0
     output = capsys.readouterr()
-    assert "partial:  55 (Δ—)  | brak danych  | 7d avg —" in output.out
-    assert "healthy:  55 (Δ+5)  | poprawił się" in output.out
+    assert "partial:  55 (Δ—)  | no data  | 7d avg —" in output.out
+    assert "healthy:  55 (Δ+5)  | improved" in output.out
     assert output.out.index("partial:") < output.out.index("healthy:")
-    assert "Podsumowanie: 1 poprawił się, 0 pogorszyło się, 0 bez zmian, 1 brak danych" in output.out
+    assert "Summary: 1 improved, 0 worsened, 0 unchanged, 1 no data" in output.out
     assert len(output.err.splitlines()) == 1
     assert output.err.startswith("[WARN] partial: ")
     assert cause in output.err
     assert "[ERROR]" not in output.err
     assert "[WARN]" not in output.out
-    assert ("nie udało się pobrać historii" in output.err) == (status == "request_error")
+    assert ("failed to fetch history" in output.err) == (status == "request_error")
     if discarded:
-        assert f"odrzucone punkty historii: {discarded}" in output.err
+        assert f"discarded history points: {discarded}" in output.err
 
 
 @pytest.mark.parametrize("verbosity", [0, 1, 2])
@@ -124,15 +124,15 @@ def test_expected_missing_fields_are_explained_only_in_verbose_mode(
     assert run(["partial", "healthy"], verbosity=verbosity) == 0
     output = capsys.readouterr()
     assert "healthy:  55 (Δ+5)" in output.out
-    assert "1 brak danych" in output.out
+    assert "1 no data" in output.out
     if field == "currentScore":
-        assert "partial:  — (Δ—)  | brak danych  | 7d avg 50  | 7d max 60" in output.out
-        cause = "brak bieżącego wyniku"
+        assert "partial:  — (Δ—)  | no data  | 7d avg 50  | 7d max 60" in output.out
+        cause = "missing current score"
         if verbosity >= 2:
-            assert "punkty COMBINED 7d: 2" in output.out
+            assert "COMBINED 7d points: 2" in output.out
     else:
-        assert "partial:  55 (Δ—)  | brak danych  | 7d avg —" in output.out
-        cause = "brak identyfikatora historii"
+        assert "partial:  55 (Δ—)  | no data  | 7d avg —" in output.out
+        cause = "missing history identifier"
     assert output.err == (f"[INFO] partial: {cause}\n" if verbosity else "")
 
 
@@ -150,9 +150,9 @@ def test_empty_history_has_its_own_state_and_verbose_explanation(
 
     assert run(["partial", "healthy"], verbosity=verbosity) == 0
     output = capsys.readouterr()
-    assert "partial:  55 (Δ—)  | brak danych" in output.out
+    assert "partial:  55 (Δ—)  | no data" in output.out
     assert "healthy:  55 (Δ+5)" in output.out
-    assert output.err == ("[INFO] partial: historia jest pusta\n" if verbosity else "")
+    assert output.err == ("[INFO] partial: history is empty\n" if verbosity else "")
 
 
 @pytest.mark.parametrize("kind", ["http", "timeout", "network", "invalid_response"])
@@ -169,7 +169,7 @@ def test_history_status_uses_error_kind_instead_of_message(
     history = load_model_history("1")
     assert history.status == ("invalid_data" if kind == "invalid_response" else "request_error")
     if kind == "http":
-        assert history.detail == "nie udało się pobrać historii (HTTP 503)"
+        assert history.detail == "failed to fetch history (HTTP 503)"
 
 
 @pytest.mark.parametrize("verbosity", [0, 1, 2])
@@ -189,13 +189,13 @@ def test_analysis_overflow_has_a_warning_and_preserves_history_statistics(
     assert run(["partial", "healthy"], verbosity=verbosity) == 0
     output = capsys.readouterr()
     partial_line = next(line for line in output.out.splitlines() if line.startswith("partial:"))
-    assert "(Δ—)  | brak danych" in partial_line
+    assert "(Δ—)  | no data" in partial_line
     assert "7d avg —" not in partial_line
     assert "7d max —" not in partial_line
     assert "healthy:  55 (Δ+5)" in output.out
-    assert "1 brak danych" in output.out
+    assert "1 no data" in output.out
     assert output.err == (
-        "[WARN] partial: błąd obliczeń oceny (Cannot compute a finite model assessment)\n"
+        "[WARN] partial: assessment calculation error (Cannot compute a finite model assessment)\n"
     )
 
 
@@ -228,7 +228,7 @@ def test_parser_and_discard_warnings_keep_context_and_are_not_repeated(
         "[WARN] Leaderboard entry 1: invalid name; skipped",
         "[WARN] partial: duplicate name; using the last entry",
         "[WARN] partial: invalid stability; treated as missing",
-        "[WARN] partial: odrzucone punkty historii: 1",
+        "[WARN] partial: discarded history points: 1",
     ]
 
 
@@ -267,7 +267,7 @@ def test_healthy_report_and_absent_model_do_not_add_stderr_diagnostics(
 ) -> None:
     assert run(["healthy", "absent"], verbosity=verbosity) == 0
     output = capsys.readouterr()
-    assert "healthy:  55 (Δ+5)  | poprawił się" in output.out
+    assert "healthy:  55 (Δ+5)  | improved" in output.out
     assert output.out.count("[WARN] absent: not found in API") == 1
-    assert "brak danych" not in output.out
+    assert "no data" not in output.out
     assert output.err == ""

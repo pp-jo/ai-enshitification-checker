@@ -50,37 +50,37 @@ def load_model_history(model_id: str | None) -> HistoryOutcome:
     """Classify history availability and retain diagnostics without printing."""
     if model_id is None:
         return HistoryOutcome(
-            status="missing_id", detail="brak identyfikatora historii"
+            status="missing_id", detail="missing history identifier"
         )
     try:
         history = fetch_history(model_id)
     except ApiError as exc:
         if exc.kind == "invalid_response":
             return HistoryOutcome(
-                status="invalid_data", detail=f"nieprawidłowe dane historii ({exc})"
+                status="invalid_data", detail=f"invalid history data ({exc})"
             )
         reason = str(exc)
         if exc.kind == "http" and exc.http_status is not None:
             reason = f"HTTP {exc.http_status}"
         return HistoryOutcome(
-            status="request_error", detail=f"nie udało się pobrać historii ({reason})"
+            status="request_error", detail=f"failed to fetch history ({reason})"
         )
 
     if not history.scores:
         if history.discarded_points:
             return HistoryOutcome(
                 status="invalid_data",
-                detail="historia nie zawiera poprawnych punktów",
+                detail="history contains no valid points",
                 discarded_points=history.discarded_points,
             )
-        return HistoryOutcome(status="empty", detail="historia jest pusta")
+        return HistoryOutcome(status="empty", detail="history is empty")
 
     try:
         stats = compute_period_stats(history.scores)
     except AnalysisError as exc:
         return HistoryOutcome(
             status="numeric_error",
-            detail=f"błąd obliczeń statystyk historii ({exc})",
+            detail=f"history statistics calculation error ({exc})",
             discarded_points=history.discarded_points,
         )
     return HistoryOutcome(
@@ -102,7 +102,7 @@ def collect_model_outcomes(
     if model_ids:
         if sys.stderr.isatty():
             print(
-                format_diagnostic("Pobieranie historii modeli…", level="INFO"),
+                format_diagnostic("Fetching model histories…", level="INFO"),
                 file=sys.stderr,
                 flush=True,
             )
@@ -143,7 +143,7 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
     diagnostics: list[str] = []
     if verbosity >= 1 and result.current_score is None:
         diagnostics.append(format_diagnostic(
-            "brak bieżącego wyniku", name=result.name, level="INFO"
+            "missing current score", name=result.name, level="INFO"
         ))
 
     history_warning = history.status in (
@@ -151,7 +151,7 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
     )
     detail = history.detail
     if history.discarded_points:
-        discarded = f"odrzucone punkty historii: {history.discarded_points}"
+        discarded = f"discarded history points: {history.discarded_points}"
         detail = f"{detail}; {discarded}" if detail else discarded
         history_warning = True
     if detail and (history_warning or verbosity >= 1):
@@ -161,7 +161,7 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
 
     if result.analysis_error is not None:
         diagnostics.append(format_diagnostic(
-            f"błąd obliczeń oceny ({result.analysis_error})", name=result.name
+            f"assessment calculation error ({result.analysis_error})", name=result.name
         ))
     return diagnostics
 
@@ -209,23 +209,23 @@ def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="AI Stupid Meter — sprawdź trendy modeli AI",
+        description="AI Stupid Meter — check AI model trends",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Przykłady:\n"
-            "  aimeter          — standardowy output\n"
-            "  aimeter -v       — + obliczenia Δ, próg, logika [!!]\n"
-            "  aimeter -vv      — + statystyki COMBINED 7d i stabilność (API)\n"
-            "  aimeter -vvv...  — odpowiednik -vv\n"
-            "  aimeter --config ./config.toml — własna lista modeli"
+            "Examples:\n"
+            "  aimeter          — standard output\n"
+            "  aimeter -v       — + Δ calculations, threshold, [!!] logic\n"
+            "  aimeter -vv      — + COMBINED 7d statistics and stability (API)\n"
+            "  aimeter -vvv...  — same as -vv\n"
+            "  aimeter --config ./config.toml — custom model list"
         ),
     )
     parser.add_argument(
         "--config",
-        metavar="PLIK",
+        metavar="FILE",
         help=(
-            "Plik TOML z listą modeli (domyślnie: "
-            "$XDG_CONFIG_HOME/aimeter/config.toml lub ~/.config/aimeter/config.toml)"
+            "TOML file with the model list (default: "
+            "$XDG_CONFIG_HOME/aimeter/config.toml or ~/.config/aimeter/config.toml)"
         ),
     )
     parser.add_argument(
@@ -233,7 +233,7 @@ def main() -> None:
         action="count",
         default=0,
         dest="verbosity",
-        help="Więcej szczegółów (można powtórzyć: -v, -vv)",
+        help="More detail (repeatable: -v, -vv)",
     )
     args = parser.parse_args()
     try:

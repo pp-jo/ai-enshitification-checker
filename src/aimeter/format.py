@@ -85,29 +85,6 @@ def format_missing_model(name: str) -> str:
     )
 
 
-def _polish_plural(count: int, singular: str, few: str, many: str) -> str:
-    """Polska pluralizacja: 1 / 2-4 / 5+ (z wyjątkiem 12-14, które idą do `many`)."""
-    if count == 1:
-        return f"1 {singular}"
-    last_digit = count % 10
-    last_two = count % 100
-    if 2 <= last_digit <= 4 and not 12 <= last_two <= 14:
-        return f"{count} {few}"
-    return f"{count} {many}"
-
-
-def _plural_improved(count: int) -> str:
-    return _polish_plural(count, "poprawił się", "poprawiły się", "poprawiło się")
-
-
-def _plural_worsened(count: int) -> str:
-    return _polish_plural(count, "pogorszył się", "pogorszyły się", "pogorszyło się")
-
-
-def _plural_no_data(count: int) -> str:
-    return _polish_plural(count, "brak danych", "braki danych", "braków danych")
-
-
 def format_summary(results: list[ModelResult]) -> str:
     found = [r for r in results if r.found]
     improved = sum(1 for r in found if r.label == LABEL_IMPROVED)
@@ -116,19 +93,19 @@ def format_summary(results: list[ModelResult]) -> str:
     no_data = sum(1 for r in found if r.label == LABEL_NO_DATA)
 
     parts = [
-        f"Podsumowanie: {_plural_improved(improved)}",
-        _plural_worsened(worsened),
-        f"{stable} bez zmian",
+        f"Summary: {improved} improved",
+        f"{worsened} worsened",
+        f"{stable} unchanged",
     ]
     if no_data:
-        parts.append(_plural_no_data(no_data))
+        parts.append(f"{no_data} no data")
     return ", ".join(parts)
 
 
 _CUSUM_DESC = {
-    "up": "model poprawia się w ostatnich ~48h",
-    "down": "model pogarsza się w ostatnich ~48h",
-    "stable": "brak trendu krótkoterminowego (~48h)",
+    "up": "the model is improving over the last ~48h",
+    "down": "the model is deteriorating over the last ~48h",
+    "stable": "no short-term trend (~48h)",
 }
 
 _INDENT = "    "
@@ -140,7 +117,7 @@ def _format_threshold_comparison(
     relation: Literal["<", "≥", "≤"],
     *,
     value_label: str = "Δ",
-    threshold_label: str = "próg",
+    threshold_label: str = "threshold",
 ) -> str:
     """Show a decided comparison without hiding differences through rounding."""
     value_text, threshold_text = f"{value:.0f}", f"{abs(threshold):.1f}"
@@ -149,22 +126,22 @@ def _format_threshold_comparison(
     if value_text == f"{threshold:.0f}":
         value_text = f"{value:.1f}"
         if value != threshold and value_text == f"{threshold:.1f}":
-            position = "powyżej" if relation == "≥" else "poniżej"
+            position = "above" if relation == "≥" else "below"
             return (
                 f"{value_label}(≈{value_text}), {threshold_label}(≈{threshold_text}): "
-                f"{position} progu przed zaokrągleniem"
+                f"{position} the threshold before rounding"
             )
     return f"{value_label}({value_text}) {relation} {threshold_label}({threshold_text})"
 
 
 def format_verbose_v1(result: ModelResult) -> list[str]:
-    """Obliczenia Δ, progu i logiki [!!] — poziom -v."""
+    """Δ, threshold, and [!!] logic — -v."""
     if not result.found:
         return []
 
     cusum_line = (
         f"{_INDENT}→ {format_cusum(result.trend)}  "
-        f"{_CUSUM_DESC.get(result.trend or '', 'brak informacji o trendzie')}"
+        f"{_CUSUM_DESC.get(result.trend or '', 'no trend information')}"
     )
     assessment = result.strong_signal_assessment
     if (
@@ -175,7 +152,7 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
         or assessment is None
     ):
         return [
-            f"{_INDENT}→ brak wystarczających danych do obliczenia Δ",
+            f"{_INDENT}→ not enough data to compute Δ",
             cusum_line,
         ]
 
@@ -190,7 +167,7 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
     )
     equality = "≈" if rounded else "="
     lines.append(
-        f"{_INDENT}→ Δ {equality} wynik({score}) − 7d śr.({avg})"
+        f"{_INDENT}→ Δ {equality} score({score}) − 7d avg({avg})"
         f" {equality} {sign}{result.delta:.0f}"
     )
 
@@ -199,7 +176,7 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
     min_t = f"{MIN_THRESHOLD:.0f}"
     scale = f"{SE_THRESHOLD_SCALE}"
     lines.append(
-        f"{_INDENT}→ próg = max({min_t}, SE×{scale})"
+        f"{_INDENT}→ threshold = max({min_t}, SE×{scale})"
         f" = max({min_t}, {se:.1f}×{scale})"
         f" = max({min_t}, {se_scaled:.1f}) = {result.threshold:.1f}"
     )
@@ -213,23 +190,25 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
         rationale = _format_threshold_comparison(
             delta_abs, result.threshold, "<", value_label="|Δ|"
         )
-    lines.append(f"{_INDENT}→ ocena: {rationale}  →  {result.label}")
+    lines.append(f"{_INDENT}→ label: {rationale}  →  {result.label}")
 
     if not assessment.applicable:
-        lines.append(f"{_INDENT}→ [!!]: nie dotyczy (ocena ≠ pogorszył się)")
+        lines.append(
+            f"{_INDENT}→ [!!]: not applicable (label ≠ {LABEL_WORSENED})"
+        )
     else:
         mult = f"{STRONG_SIGNAL_MULTIPLIER:.0f}"
         cond_drop = _format_threshold_comparison(
             delta_abs, assessment.large_drop_threshold,
             "≥" if assessment.large_drop else "<",
-            value_label="|Δ|", threshold_label=f"{mult}×próg",
+            value_label="|Δ|", threshold_label=f"{mult}×threshold",
         )
         if assessment.large_drop:
             cond_drop += " ✓"
         cond_cusum = (
-            f"{CUMUL_SUM_LABEL}:↓ ✓" if assessment.cusum_down else f"{CUMUL_SUM_LABEL}:↓? nie"
+            f"{CUMUL_SUM_LABEL}:↓ ✓" if assessment.cusum_down else f"{CUMUL_SUM_LABEL}:↓? no"
         )
-        verdict = "tak → [!!]" if assessment.is_strong else "nie → brak [!!]"
+        verdict = "yes → [!!]" if assessment.is_strong else "no → no [!!]"
         lines.append(f"{_INDENT}→ [!!]: {cond_drop}   {cond_cusum}   →  {verdict}")
 
     lines.append(cusum_line)
@@ -238,36 +217,33 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
 
 
 def format_verbose_v2(result: ModelResult) -> list[str]:
-    """Statystyki COMBINED 7d (liczone lokalnie) + metadane z API — poziom -vv."""
+    """COMBINED 7d statistics (computed locally) + API metadata — -vv."""
     if not result.found:
         return []
 
     parts: list[str] = []
 
     if result.data_points is not None:
-        parts.append(f"punkty COMBINED 7d: {result.data_points}")
+        parts.append(f"COMBINED 7d points: {result.data_points}")
     if result.confidence_lower is not None and result.confidence_upper is not None:
         cl = f"{result.confidence_lower:.0f}"
         cu = f"{result.confidence_upper:.0f}"
         parts.append(f"CI (COMBINED 7d): [{cl}, {cu}]")
     if result.stability is not None:
-        parts.append(f"stabilność (API): {result.stability:.0f}/100")
+        parts.append(f"stability (API): {result.stability:.0f}/100")
 
     if not parts:
-        return [f"{_INDENT}→ brak dodatkowych statystyk"]
+        return [f"{_INDENT}→ no extra statistics"]
     return [f"{_INDENT}→ {' │ '.join(parts)}"]
 
 
 def format_legend() -> str:
     separator = "─" * 78
     se_max = f"{SE_HIGH_THRESHOLD:.0f}"
-    text = (
-        f"[!!] silny sygnał: duży Δ lub {CUMUL_SUM_LABEL}:↓"
-        "   │   "
-        f"SE↕ błąd pomiaru wysoki (SE>{se_max}), wynik mniej wiarygodny"
-        "   │   "
-        f"{CUMUL_SUM_LABEL}:↑↓→ trend ostatnich ~48h"
-        "   │   "
-        f"{CUMUL_SUM_LABEL}:? brak informacji o trendzie"
+    items = (
+        f"[!!] strong signal: large Δ or {CUMUL_SUM_LABEL}:↓",
+        f"SE↕ high measurement error (SE>{se_max}), score is less reliable",
+        f"{CUMUL_SUM_LABEL}:↑↓→ trend over the last ~48h",
+        f"{CUMUL_SUM_LABEL}:? no trend information",
     )
-    return f"{separator}\n{text}"
+    return "\n".join((separator, *items))

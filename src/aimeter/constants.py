@@ -12,17 +12,17 @@ REQUEST_TIMEOUT = 10
 # Client-side concurrency limit; not an advertised API rate limit.
 HISTORY_MAX_WORKERS = 4
 
-# Próg decyzyjny dla etykiety: max(MIN_THRESHOLD, SE * SE_THRESHOLD_SCALE).
+# Label threshold: max(MIN_THRESHOLD, SE * SE_THRESHOLD_SCALE).
 MIN_THRESHOLD = 5.0
 SE_THRESHOLD_SCALE = 0.7
 
-# Silny sygnał [!!] przy |Δ| >= STRONG_SIGNAL_MULTIPLIER * próg.
+# Strong signal [!!] when |Δ| >= STRONG_SIGNAL_MULTIPLIER * threshold.
 STRONG_SIGNAL_MULTIPLIER = 2.0
 
-# Powyżej tej wartości SE oznaczamy wynik markerem SE↕ jako mało wiarygodny.
+# Above this SE, mark the score with SE↕ as less reliable.
 SE_HIGH_THRESHOLD = 10.0
 
-# Wbudowana lista domyślna, używana przy braku pliku konfiguracji użytkownika.
+# Built-in default list, used when no user config file exists.
 WATCHED_MODELS = [
     "gpt-5.6-sol",
     "gpt-5.6-terra",
@@ -37,10 +37,10 @@ WATCHED_MODELS = [
     "kimi-k2.7-code",
 ]
 
-LABEL_IMPROVED = "poprawił się"
-LABEL_WORSENED = "pogorszył się"
-LABEL_STABLE = "bez zmian"
-LABEL_NO_DATA = "brak danych"
+LABEL_IMPROVED = "improved"
+LABEL_WORSENED = "worsened"
+LABEL_STABLE = "unchanged"
+LABEL_NO_DATA = "no data"
 CUMUL_SUM_LABEL = "Cumul. sum"
 
 CUSUM_ARROWS = {"up": "↑", "down": "↓", "stable": "→"}

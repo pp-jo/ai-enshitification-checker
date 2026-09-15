@@ -56,9 +56,9 @@ def test_bad_fields_do_not_crash_or_hide_healthy_models(
     assert run(["bad", "good"], verbosity=verbosity) == 0
     output = capsys.readouterr()
     bad_line = next(line for line in output.out.splitlines() if line.startswith("bad:"))
-    assert ("brak danych" in bad_line) == no_assessment
+    assert ("no data" in bad_line) == no_assessment
     assert "good:  55 (Δ+5)" in output.out
-    assert "poprawił się" in output.out
+    assert "improved" in output.out
     assert " [!!]" not in bad_line
     assert "stale" not in bad_line
     assert output.err.count(f"[WARN] bad: invalid {field}; treated as missing") == 1
@@ -91,9 +91,9 @@ def test_unusable_history_preserves_current_score_and_other_models(
     )
     assert run(["bad", "good"], verbosity=verbosity) == 0
     output = capsys.readouterr()
-    assert "bad:  55 (Δ—)  | brak danych" in output.out
+    assert "bad:  55 (Δ—)  | no data" in output.out
     assert "good:  55 (Δ+5)" in output.out
-    assert "1 brak danych" in output.out
+    assert "1 no data" in output.out
     assert ("[WARN] bad:" in output.err) == has_warning
     assert "[WARN]" not in output.out
 
@@ -109,11 +109,11 @@ def test_mixed_history_uses_only_valid_points_for_all_statistics(
     )
     assert run(["bad"], verbosity=2) == 0
     output = capsys.readouterr()
-    assert "50 (Δ+0)  | bez zmian  | 7d avg 50  | 7d max 60" in output.out
+    assert "50 (Δ+0)  | unchanged  | 7d avg 50  | 7d max 60" in output.out
     assert "SE ±10.0" in output.out
-    assert "punkty COMBINED 7d: 2" in output.out
+    assert "COMBINED 7d points: 2" in output.out
     assert "CI (COMBINED 7d): [30, 70]" in output.out
-    assert output.err == "[WARN] bad: odrzucone punkty historii: 2\n"
+    assert output.err == "[WARN] bad: discarded history points: 2\n"
 
 
 def test_invalid_name_does_not_break_indexing_in_cli(
@@ -177,7 +177,7 @@ def test_missing_id_does_not_request_history(
     outcome = load_model_history(None)
     assert outcome.stats is None
     assert outcome.status == "missing_id"
-    assert outcome.detail == "brak identyfikatora historii"
+    assert outcome.detail == "missing history identifier"
 
 
 def test_collected_results_keep_each_models_history_diagnostics(
@@ -212,7 +212,7 @@ def test_collected_results_keep_each_models_history_diagnostics(
     assert run(["bad", "good"], verbosity=2) == 0
     output = capsys.readouterr()
     assert "bad:  55 (Δ+5)" in output.out
-    assert "good:  55 (Δ—)  | brak danych" in output.out
-    assert output.err.count("[WARN] bad: odrzucone punkty historii: 1") == 1
-    assert output.err.count("[WARN] good: nieprawidłowe dane historii") == 1
+    assert "good:  55 (Δ—)  | no data" in output.out
+    assert output.err.count("[WARN] bad: discarded history points: 1") == 1
+    assert output.err.count("[WARN] good: invalid history data") == 1
     assert "JSON" in output.err

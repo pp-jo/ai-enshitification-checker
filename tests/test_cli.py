@@ -22,9 +22,9 @@ def test_run_normal_output(
     assert "gpt-5.5:" in output
     assert "gpt-5.4:" in output
     assert "kimi-k2.7-code:" in output
-    assert "poprawił się" in output
-    assert "pogorszył się" in output or "pogorszyły się" in output
-    assert "Podsumowanie:" in output
+    assert "improved" in output
+    assert "worsened" in output
+    assert "Summary:" in output
 
 
 def test_run_model_not_in_response(
@@ -90,7 +90,7 @@ def test_run_empty_watched_models_list(
 
     assert exit_code == 0
     assert "gpt-5.5:" not in output.out
-    assert "Podsumowanie: 0 poprawiło się, 0 pogorszyło się, 0 bez zmian" in output.out
+    assert "Summary: 0 improved, 0 worsened, 0 unchanged" in output.out
     assert output.err == ""
 
 
@@ -103,9 +103,9 @@ def test_run_verbose_v1_shows_calculations(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "→ Δ = wynik(" in output
-    assert "→ próg = max(5," in output
-    assert "→ ocena:" in output
+    assert "→ Δ = score(" in output
+    assert "→ threshold = max(5," in output
+    assert "→ label:" in output
     assert "→ Cumul. sum:" in output
 
 
@@ -131,8 +131,8 @@ def test_run_verbose_v2_shows_combined_fields(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "punkty COMBINED 7d: 12" in output
-    assert "stabilność (API): 78/100" in output
+    assert "COMBINED 7d points: 12" in output
+    assert "stability (API): 78/100" in output
     assert "CI (COMBINED 7d): [" in output
 
 
@@ -153,12 +153,12 @@ def test_run_history_failure_shows_no_data_label(
     output = capsys.readouterr()
 
     assert exit_code == 0
-    assert "gpt-5.5:  47 (Δ—)  | brak danych  | 7d avg —  | 7d max —" in output.out
-    assert "Podsumowanie:" in output.out
-    assert "1 brak danych" in output.out
-    assert "0 bez zmian, 1 brak danych" in output.out
+    assert "gpt-5.5:  47 (Δ—)  | no data  | 7d avg —  | 7d max —" in output.out
+    assert "Summary:" in output.out
+    assert "1 no data" in output.out
+    assert "0 unchanged, 1 no data" in output.out
     assert "[WARN]" not in output.out
-    assert output.err == "[WARN] gpt-5.5: nie udało się pobrać historii (API unreachable)\n"
+    assert output.err == "[WARN] gpt-5.5: failed to fetch history (API unreachable)\n"
 
 
 def test_run_no_verbose_no_calculations(
@@ -169,8 +169,8 @@ def test_run_no_verbose_no_calculations(
     run(["gpt-5.5"], verbosity=0)
     output = capsys.readouterr().out
 
-    assert "→ Δ = wynik(" not in output
-    assert "→ próg" not in output
+    assert "→ Δ = score(" not in output
+    assert "→ threshold" not in output
 
 
 @pytest.mark.parametrize(
@@ -212,8 +212,8 @@ def test_main_uses_selected_models(
     assert exc.value.code == 0
     output = capsys.readouterr().out
     assert "kimi-k2.7-code:" in output
-    assert "→ Δ = wynik(" in output
-    assert "punkty COMBINED 7d:" in output
+    assert "→ Δ = score(" in output
+    assert "COMBINED 7d points:" in output
     assert ("gpt-5.5:" in output) == (source == "builtin")
     if source != "builtin":
         assert "not found in API" not in output
