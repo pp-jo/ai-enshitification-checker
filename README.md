@@ -121,7 +121,15 @@ The **label** is assigned by comparing delta with the threshold (the CLI labels 
 - `poprawił się` (improved) — delta ≥ +threshold
 - `pogorszył się` (worsened) — delta ≤ −threshold
 - `bez zmian` (unchanged) — delta falls within (−threshold, +threshold); a drop may be visible in Δ, but it does not exceed measurement noise
-- `brak danych` (no data) — the 7-day COMBINED history could not be fetched; the row shows the current score and CUSUM from the API, but no Δ or assessment
+- `brak danych` (no data) — the current score or usable 7-day COMBINED history is unavailable, or the calculation exceeds the numeric range; the row keeps the available values, but shows no Δ or assessment
+
+Scores must be finite numbers. Booleans and numeric strings are treated as missing
+values. Invalid history points are discarded; all period statistics use the same
+remaining points. An empty history or one without valid points provides no baseline.
+
+An absent or invalid `trend` is shown as `Cumul. sum:?` (unknown), while an explicit
+`stable` is shown as `→`. An unknown trend does not prevent a strong signal from
+a sufficiently large drop. Invalid optional metadata is omitted.
 
 **`-vv`** shows two types of numbers on one line:
 
@@ -259,7 +267,16 @@ Wyższy wynik oznacza lepszą wydajność — benchmarki mierzą zdolności kodo
 - `poprawił się` — delta ≥ +próg
 - `pogorszył się` — delta ≤ −próg
 - `bez zmian` — delta mieści się w przedziale (−próg, +próg); spadek może być widoczny w Δ, ale nie przekracza szumu pomiarowego
-- `brak danych` — nie udało się pobrać historii COMBINED 7d; wiersz pokazuje bieżący wynik i CUSUM z API, ale bez Δ i bez oceny
+- `brak danych` — brakuje bieżącego wyniku lub użytecznej historii COMBINED 7d albo obliczenia przekraczają zakres liczbowy; wiersz zachowuje dostępne wartości, ale nie pokazuje Δ ani oceny zmiany
+
+Wyniki muszą być skończonymi liczbami. Wartości logiczne i teksty zawierające liczby
+traktujemy jako brak danych. Niepoprawne punkty historii są odrzucane; wszystkie
+statystyki okresu korzystają z tego samego zbioru pozostałych punktów. Pusta historia
+lub historia bez poprawnych punktów nie daje podstawy do porównania.
+
+Brakujący lub niepoprawny `trend` pokazujemy jako `Cumul. sum:?` (nieznany),
+a jawne `stable` jako `→`. Nieznany trend nie blokuje silnego sygnału wynikającego
+z wystarczająco dużego spadku. Niepoprawne opcjonalne metadane są pomijane.
 
 **`-vv`** — dwa rodzaje liczb w jednej linii:
 - **COMBINED 7d** (punkty, CI) — liczone lokalnie z historii wykresu, na tym samym zbiorze co Δ i SE

@@ -2,7 +2,6 @@ from datetime import datetime
 
 from aimeter.constants import (
     CUMUL_SUM_LABEL,
-    CUSUM_ARROWS,
     LABEL_IMPROVED,
     LABEL_NO_DATA,
     LABEL_STABLE,
@@ -123,8 +122,20 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
     if not result.found:
         return []
 
-    if result.delta is None or result.threshold is None:
-        return [f"{_INDENT}→ brak wystarczających danych do obliczenia Δ"]
+    cusum_line = (
+        f"{_INDENT}→ {format_cusum(result.trend)}  "
+        f"{_CUSUM_DESC.get(result.trend or '', 'brak informacji o trendzie')}"
+    )
+    if (
+        result.delta is None
+        or result.threshold is None
+        or result.current_score is None
+        or result.period_avg is None
+    ):
+        return [
+            f"{_INDENT}→ brak wystarczających danych do obliczenia Δ",
+            cusum_line,
+        ]
 
     lines: list[str] = []
 
@@ -172,9 +183,7 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
         verdict = "tak → [!!]" if result.strong_signal else "nie → brak [!!]"
         lines.append(f"{_INDENT}→ [!!]: {cond_drop}   {cond_cusum}   →  {verdict}")
 
-    arrow = CUSUM_ARROWS.get(result.trend or "", "→")
-    desc = _CUSUM_DESC.get(result.trend or "", "nieznany trend")
-    lines.append(f"{_INDENT}→ {CUMUL_SUM_LABEL}:{arrow}  {desc}")
+    lines.append(cusum_line)
 
     return lines
 
@@ -209,5 +218,7 @@ def format_legend() -> str:
         f"SE↕ błąd pomiaru wysoki (SE>{se_max}), wynik mniej wiarygodny"
         "   │   "
         f"{CUMUL_SUM_LABEL}:↑↓→ trend ostatnich ~48h"
+        "   │   "
+        f"{CUMUL_SUM_LABEL}:? brak informacji o trendzie"
     )
     return f"{separator}\n{text}"
