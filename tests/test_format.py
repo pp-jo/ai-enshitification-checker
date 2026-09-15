@@ -10,7 +10,7 @@ from aimeter.constants import (
     LABEL_WORSENED,
 )
 from aimeter.format import format_model_line, format_summary, format_verbose_v1
-from aimeter.models import ModelResult, analyze_model, compute_period_stats
+from aimeter.models import ModelResult, Trend, analyze_model, compute_period_stats
 from aimeter.parsing import parse_leaderboard
 
 
@@ -69,7 +69,6 @@ def _result_with_label(label: str) -> ModelResult:
         delta=0,
         threshold=5,
         label=label,
-        strong_signal=False,
     )
 
 
@@ -141,3 +140,99 @@ def test_format_model_line_high_se_only(
     assert "gpt-5.5:  47 (Δ-5)  | bez zmian  | 7d avg 52  | 7d max 92  " in line
     assert "SE↕" in line
     assert "Cumul. sum:→" in line
+
+
+def _signal_result(delta: float, trend: Trend | None = "stable") -> ModelResult:
+    entry = parse_leaderboard({
+        "success": True,
+        "data": [{"name": "example", "currentScore": delta, "trend": trend}],
+    }).by_name["example"]
+    return analyze_model("example", entry, period_stats=compute_period_stats([0.0]))
+
+
+@pytest.mark.parametrize(
+    "delta,trend,strong,reason",
+    [
+        (-6, "stable", False, "|Δ|(6) < 2×próg(10.0)   Cumul. sum:↓? nie   →  nie → brak [!!]"),
+        (-10, "stable", True, "|Δ|(10.0) ≥ 2×próg(10.0) ✓   Cumul. sum:↓? nie   →  tak → [!!]"),
+        (-6, "down", True, "|Δ|(6) < 2×próg(10.0)   Cumul. sum:↓ ✓   →  tak → [!!]"),
+        (-10, "down", True, "|Δ|(10.0) ≥ 2×próg(10.0) ✓   Cumul. sum:↓ ✓   →  tak → [!!]"),
+        (10, "down", False, "nie dotyczy (ocena ≠ pogorszył się)"),
+        (0, "down", False, "nie dotyczy (ocena ≠ pogorszył się)"),
+    ],
+)
+def test_signal_marker_and_explanation_share_the_same_reasons(
+    delta: float, trend: Trend, strong: bool, reason: str,
+) -> None:
+    result = _signal_result(delta, trend)
+    assert (" [!!]" in format_model_line(result)) is strong
+    assert f"    → [!!]: {reason}" in format_verbose_v1(result)
+
+
+@pytest.mark.parametrize(
+    "delta,label,comparison",
+    [
+        (4.9, LABEL_STABLE, "|Δ|(4.9) < próg(5.0)"),
+        (4.99, LABEL_STABLE, "|Δ|(≈5.0), próg(≈5.0): poniżej progu przed zaokrągleniem"),
+        (5, LABEL_IMPROVED, "Δ(5.0) ≥ próg(5.0)"),
+        (5.01, LABEL_IMPROVED, "Δ(≈5.0), próg(≈5.0): powyżej progu przed zaokrągleniem"),
+        (5.1, LABEL_IMPROVED, "Δ(5.1) ≥ próg(5.0)"),
+        (-4.9, LABEL_STABLE, "|Δ|(4.9) < próg(5.0)"),
+        (-4.99, LABEL_STABLE, "|Δ|(≈5.0), próg(≈5.0): poniżej progu przed zaokrągleniem"),
+        (-5, LABEL_WORSENED, "Δ(-5.0) ≤ −próg(5.0)"),
+        (-5.01, LABEL_WORSENED, "Δ(≈-5.0), −próg(≈5.0): poniżej progu przed zaokrągleniem"),
+        (-5.1, LABEL_WORSENED, "Δ(-5.1) ≤ −próg(5.0)"),
+    ],
+)
+def test_verbose_label_boundary_is_not_hidden_by_rounding(
+    delta: float, label: str, comparison: str,
+) -> None:
+    result = _signal_result(delta)
+    assert result.label == label
+    verbose = format_verbose_v1(result)
+    assert f"    → ocena: {comparison}  →  {label}" in verbose
+    if delta in (-5, 5):
+        assert verbose[0].startswith("    → Δ = wynik(")
+        assert "≈" not in verbose[0]
+    else:
+        assert verbose[0].startswith("    → Δ ≈ wynik(")
+        assert verbose[0].endswith("≈ +5" if delta > 0 else "≈ -5")
+
+
+@pytest.mark.parametrize(
+    "delta,strong,comparison",
+    [
+        (-9.9, False, "|Δ|(9.9) < 2×próg(10.0)"),
+        (-9.99, False, "|Δ|(≈10.0), 2×próg(≈10.0): poniżej progu przed zaokrągleniem"),
+        (-10, True, "|Δ|(10.0) ≥ 2×próg(10.0) ✓"),
+        (-10.01, True, "|Δ|(≈10.0), 2×próg(≈10.0): powyżej progu przed zaokrągleniem ✓"),
+        (-10.1, True, "|Δ|(10.1) ≥ 2×próg(10.0) ✓"),
+    ],
+)
+def test_verbose_large_drop_boundary_matches_marker_and_verdict(
+    delta: float, strong: bool, comparison: str,
+) -> None:
+    result = _signal_result(delta)
+    assert (" [!!]" in format_model_line(result)) is strong
+    verdict = "tak → [!!]" if strong else "nie → brak [!!]"
+    assert (
+        f"    → [!!]: {comparison}   Cumul. sum:↓? nie   →  {verdict}"
+        in format_verbose_v1(result)
+    )
+
+
+@pytest.mark.parametrize("trend_fields", [{}, {"trend": None}, {"trend": "sideways"}])
+@pytest.mark.parametrize("delta,strong", [(-6, False), (-10, True)])
+def test_unknown_trend_does_not_confirm_or_block_the_drop_reason(
+    trend_fields: dict[str, object], delta: float, strong: bool,
+) -> None:
+    entry = parse_leaderboard({
+        "success": True,
+        "data": [{"name": "example", "currentScore": delta, **trend_fields}],
+    }).by_name["example"]
+    result = analyze_model("example", entry, period_stats=compute_period_stats([0.0]))
+    assert (" [!!]" in format_model_line(result)) is strong
+    verbose = "\n".join(format_verbose_v1(result))
+    assert "Cumul. sum:↓? nie" in verbose
+    assert "Cumul. sum:↓ ✓" not in verbose
+    assert "Cumul. sum:?" in verbose
