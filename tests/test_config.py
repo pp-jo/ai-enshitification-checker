@@ -88,7 +88,7 @@ def test_missing_explicit_config_does_not_fall_back(isolated_home: Path) -> None
     write_config(isolated_home / ".config" / "aimeter" / "config.toml")
     missing = isolated_home / "missing.toml"
 
-    with pytest.raises(ConfigError, match="Nie znaleziono") as exc:
+    with pytest.raises(ConfigError, match="not found") as exc:
         load_watched_models(missing)
     assert str(missing) in str(exc.value)
 
@@ -137,7 +137,7 @@ def test_unreadable_user_config_is_an_error(
         return original_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", denied_open)
-    with pytest.raises(ConfigError, match="Nie można odczytać") as exc:
+    with pytest.raises(ConfigError, match="Cannot read configuration") as exc:
         load_watched_models()
     assert str(path) in str(exc.value)
 
