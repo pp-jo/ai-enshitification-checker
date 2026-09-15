@@ -1,7 +1,7 @@
 import math
 import statistics
 from dataclasses import dataclass
-from typing import Any
+from typing import Literal, TypeAlias
 
 from aimeter.constants import (
     CUMUL_SUM_LABEL,
@@ -15,6 +15,23 @@ from aimeter.constants import (
     STRONG_SIGNAL_MULTIPLIER,
 )
 
+Trend: TypeAlias = Literal["up", "down", "stable"]
+
+
+@dataclass(frozen=True)
+class LeaderboardEntry:
+    name: str
+    model_id: str | None
+    current_score: float | None
+    trend: Trend | None
+    is_stale: bool | None
+    stale_hours: int | None
+    stability: float | None
+
+
+class AnalysisError(ValueError):
+    """Finite history statistics could not be computed."""
+
 
 @dataclass
 class PeriodStats:
@@ -26,28 +43,25 @@ class PeriodStats:
     confidence_upper: float | None = None
 
 
-def extract_history_scores(history_payload: dict[str, Any]) -> list[float]:
-    data = history_payload.get("data")
-    if not isinstance(data, list):
-        return []
-
-    scores: list[float] = []
-    for point in data:
-        if not isinstance(point, dict):
-            continue
-        score = point.get("score")
-        if isinstance(score, (int, float)):
-            scores.append(float(score))
-    return scores
-
-
 def compute_period_stats(scores: list[float]) -> PeriodStats | None:
+    """Compute statistics from validated scores, rejecting numeric overflow."""
     if not scores:
         return None
 
+    try:
+        return _compute_period_stats(scores)
+    except (OverflowError, ValueError) as exc:
+        raise AnalysisError("Cannot compute finite history statistics") from exc
+
+
+def _compute_period_stats(scores: list[float]) -> PeriodStats:
+    if not all(math.isfinite(score) for score in scores):
+        raise ValueError("History contains non-finite scores")
     n = len(scores)
     period_avg = statistics.mean(scores)
     period_max = max(scores)
+    if not math.isfinite(period_avg):
+        raise ValueError("History average is non-finite")
     if n < 2:
         return PeriodStats(
             period_avg=period_avg,
@@ -59,13 +73,20 @@ def compute_period_stats(scores: list[float]) -> PeriodStats | None:
     stdev = statistics.stdev(scores)
     standard_error = stdev / math.sqrt(n)
     ci_half = 1.96 * standard_error
+    confidence_lower = period_avg - ci_half
+    confidence_upper = period_avg + ci_half
+    if not all(
+        math.isfinite(value)
+        for value in (standard_error, confidence_lower, confidence_upper)
+    ):
+        raise ValueError("History uncertainty is non-finite")
     return PeriodStats(
         period_avg=period_avg,
         period_max=period_max,
         standard_error=standard_error,
         data_points=n,
-        confidence_lower=period_avg - ci_half,
-        confidence_upper=period_avg + ci_half,
+        confidence_lower=confidence_lower,
+        confidence_upper=confidence_upper,
     )
 
 
@@ -75,8 +96,8 @@ class ModelResult:
     current_score: float | None
     period_avg: float | None
     standard_error: float | None
-    trend: str | None
-    is_stale: bool
+    trend: Trend | None
+    is_stale: bool | None
     stale_hours: int | None
     delta: float | None
     threshold: float | None
@@ -88,6 +109,7 @@ class ModelResult:
     stability: float | None = None
     confidence_lower: float | None = None
     confidence_upper: float | None = None
+    analysis_error: str | None = None
 
 
 def compute_threshold(standard_error: float | None) -> float:
@@ -104,7 +126,7 @@ def compute_label(delta: float, threshold: float) -> str:
 
 
 def compute_strong_signal(
-    label: str, delta: float, threshold: float, trend: str | None
+    label: str, delta: float, threshold: float, trend: Trend | None
 ) -> bool:
     if label != LABEL_WORSENED:
         return False
@@ -115,35 +137,14 @@ def compute_strong_signal(
     return False
 
 
-def format_cusum(trend: str | None) -> str:
-    arrow = CUSUM_ARROWS.get(trend or "", "→")
+def format_cusum(trend: Trend | None) -> str:
+    arrow = CUSUM_ARROWS.get(trend or "", "?")
     return f"{CUMUL_SUM_LABEL}:{arrow}"
-
-
-def parse_stale_hours(stale_duration: Any) -> int | None:
-    if stale_duration is None:
-        return None
-    if isinstance(stale_duration, bool):
-        return None
-    if isinstance(stale_duration, (int, float)):
-        return int(stale_duration)
-    if isinstance(stale_duration, str):
-        text = stale_duration.strip().lower()
-        if text.endswith("h"):
-            try:
-                return int(float(text[:-1]))
-            except ValueError:
-                return None
-        try:
-            return int(float(text))
-        except ValueError:
-            return None
-    return None
 
 
 def analyze_model(
     name: str,
-    entry: dict[str, Any] | None,
+    entry: LeaderboardEntry | None,
     *,
     period_stats: PeriodStats | None = None,
 ) -> ModelResult:
@@ -163,17 +164,17 @@ def analyze_model(
             found=False,
         )
 
-    current_score = entry.get("currentScore")
-    trend = entry.get("trend")
-    is_stale = bool(entry.get("isStale", False))
-    stale_hours = parse_stale_hours(entry.get("staleDuration"))
-    stability = entry.get("stability")
+    current_score = entry.current_score
+    trend = entry.trend
+    is_stale = entry.is_stale
+    stale_hours = entry.stale_hours
+    stability = entry.stability
 
     if period_stats is not None:
-        period_avg = period_stats.period_avg
-        period_max = period_stats.period_max
+        period_avg: float | None = period_stats.period_avg
+        period_max: float | None = period_stats.period_max
         standard_error = period_stats.standard_error
-        data_points = period_stats.data_points
+        data_points: int | None = period_stats.data_points
         confidence_lower = period_stats.confidence_lower
         confidence_upper = period_stats.confidence_upper
     else:
@@ -204,10 +205,21 @@ def analyze_model(
             confidence_upper=confidence_upper,
         )
 
-    delta = current_score - period_avg
-    threshold = compute_threshold(standard_error)
-    label = compute_label(delta, threshold)
-    strong_signal = compute_strong_signal(label, delta, threshold, trend)
+    delta: float | None = current_score - period_avg
+    threshold: float | None = compute_threshold(standard_error)
+    analysis_error = None
+    if not all(
+        math.isfinite(value)
+        for value in (delta, threshold, STRONG_SIGNAL_MULTIPLIER * threshold)
+    ):
+        delta = None
+        threshold = None
+        label = LABEL_NO_DATA
+        strong_signal = False
+        analysis_error = "Cannot compute a finite model assessment"
+    else:
+        label = compute_label(delta, threshold)
+        strong_signal = compute_strong_signal(label, delta, threshold, trend)
 
     return ModelResult(
         name=name,
@@ -226,4 +238,5 @@ def analyze_model(
         stability=stability,
         confidence_lower=confidence_lower,
         confidence_upper=confidence_upper,
+        analysis_error=analysis_error,
     )
