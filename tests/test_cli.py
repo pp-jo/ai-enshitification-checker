@@ -72,17 +72,26 @@ def test_run_empty_data(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureF
     assert output.out == ""
 
 
+@pytest.mark.parametrize("verbosity", [0, 1, 2])
 def test_run_empty_watched_models_list(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    patch_api: None,
+    verbosity: int,
 ) -> None:
-    exit_code = run([])
-    output = capsys.readouterr().out
+    def unexpected_call(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("An empty watch list must not perform HTTP or create a pool")
+
+    monkeypatch.setattr("aimeter.cli.fetch_scores", unexpected_call)
+    monkeypatch.setattr("aimeter.cli.fetch_history", unexpected_call)
+    monkeypatch.setattr("aimeter.cli.ThreadPoolExecutor", unexpected_call)
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+    exit_code = run([], verbosity=verbosity)
+    output = capsys.readouterr()
 
     assert exit_code == 0
-    assert "gpt-5.5:" not in output
-    assert "Podsumowanie: 0 poprawiło się, 0 pogorszyło się, 0 bez zmian" in output
+    assert "gpt-5.5:" not in output.out
+    assert "Podsumowanie: 0 poprawiło się, 0 pogorszyło się, 0 bez zmian" in output.out
+    assert output.err == ""
 
 
 def test_run_verbose_v1_shows_calculations(

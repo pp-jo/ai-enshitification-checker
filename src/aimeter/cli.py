@@ -1,11 +1,12 @@
 import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 from aimeter.api import ApiError, fetch_history, fetch_scores
 from aimeter.config import ConfigError, load_watched_models
-from aimeter.constants import WATCHED_MODELS
+from aimeter.constants import HISTORY_MAX_WORKERS, WATCHED_MODELS
 from aimeter.format import (
     format_diagnostic,
     format_header,
@@ -90,11 +91,44 @@ def load_model_history(model_id: str | None) -> HistoryOutcome:
 def collect_model_outcomes(
     leaderboard: LeaderboardData, watched_models: list[str]
 ) -> list[ModelOutcome]:
-    """Keep each assessment and its history diagnostics together for rendering."""
+    """Fetch unique histories concurrently, then assess in configuration order."""
+    entries = [leaderboard.by_name.get(name) for name in watched_models]
+    model_ids = list(dict.fromkeys(
+        entry.model_id
+        for entry in entries
+        if entry is not None and entry.model_id is not None
+    ))
+    histories: dict[str, HistoryOutcome] = {}
+    if model_ids:
+        if sys.stderr.isatty():
+            print(
+                format_diagnostic("Pobieranie historii modeli…", level="INFO"),
+                file=sys.stderr,
+                flush=True,
+            )
+        executor = ThreadPoolExecutor(
+            max_workers=min(HISTORY_MAX_WORKERS, len(model_ids))
+        )
+        try:
+            # Submit every history before waiting, so network waits overlap.
+            futures = {
+                model_id: executor.submit(load_model_history, model_id)
+                for model_id in model_ids
+            }
+            histories = {
+                model_id: future.result() for model_id, future in futures.items()
+            }
+        finally:
+            # Also cancel queued work on interruption; running HTTP must finish.
+            executor.shutdown(wait=True, cancel_futures=True)
+
     outcomes: list[ModelOutcome] = []
-    for name in watched_models:
-        entry = leaderboard.by_name.get(name)
-        history = load_model_history(entry.model_id if entry is not None else None)
+    for name, entry in zip(watched_models, entries):
+        history = (
+            histories[entry.model_id]
+            if entry is not None and entry.model_id is not None
+            else load_model_history(None)
+        )
         result = analyze_model(name, entry, period_stats=history.stats)
         outcomes.append(ModelOutcome(result=result, history=history))
     return outcomes
@@ -135,19 +169,23 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
 def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
     models = WATCHED_MODELS.copy() if watched_models is None else watched_models
     lines: list[str] = [format_header(), ""]
+    outcomes: list[ModelOutcome] = []
+    diagnostics: list[str] = []
 
-    try:
-        leaderboard = fetch_scores()
-    except ApiError as exc:
-        print(format_diagnostic(str(exc), level="ERROR"), file=sys.stderr)
-        return 1
+    if models:
+        try:
+            leaderboard = fetch_scores()
+        except ApiError as exc:
+            print(format_diagnostic(str(exc), level="ERROR"), file=sys.stderr)
+            return 1
 
-    if not leaderboard.by_name:
-        print(format_diagnostic("API returned empty model list"), file=sys.stderr)
-        return 0
+        if not leaderboard.by_name:
+            print(format_diagnostic("API returned empty model list"), file=sys.stderr)
+            return 0
 
-    outcomes = collect_model_outcomes(leaderboard, models)
-    diagnostics = [format_diagnostic(warning) for warning in leaderboard.warnings]
+        outcomes = collect_model_outcomes(leaderboard, models)
+        diagnostics = [format_diagnostic(warning) for warning in leaderboard.warnings]
+
     for outcome in outcomes:
         result = outcome.result
         diagnostics.extend(collect_model_diagnostics(outcome, verbosity))
