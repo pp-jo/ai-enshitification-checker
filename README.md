@@ -60,16 +60,28 @@ score, an empty history, or a missing history identifier. A valid empty history 
 not a request failure. Available scores and history statistics remain in the report.
 Models absent from the leaderboard keep their existing warning in the stdout report.
 
-Exit codes: **0** means the leaderboard was read, including partial results or an
-empty model list; **1** means the leaderboard could not be read or validated;
+Exit codes: **0** means the run succeeded, including partial results, an empty
+leaderboard, or an empty watch list; **1** means the leaderboard could not be read or validated;
 **2** means invalid arguments or configuration. Code 0 does not guarantee complete data.
-An empty leaderboard produces a warning on stderr and no report.
+With a nonempty watch list, an empty leaderboard produces a warning on stderr and no report.
 
 To capture the streams separately:
 
 ```bash
 aimeter -v >report.txt 2>diagnostics.txt
 ```
+
+### Fetching histories
+
+After reading the leaderboard once, aimeter fetches the selected histories with
+up to 4 concurrent HTTP requests, at most once per run per history ID. A failed history still produces a partial result and a warning, including HTTP 429; requests are not retried automatically.
+
+When stderr is a terminal, `[INFO] Pobieranie historii modeli…` appears before
+fetching histories. Redirecting stderr suppresses this progress message. The report
+is printed after all histories finish. An empty `watched_models = []` produces a
+zero-model summary without any HTTP requests.
+
+There is no cache between runs and no additional runtime dependency.
 
 ### Configuration
 
@@ -233,16 +245,29 @@ pustej historii lub braku identyfikatora historii. Poprawna pusta historia nie j
 awarią zapytania. Raport zachowuje dostępne wyniki i statystyki historii.
 Dotychczasowy komunikat o modelu nieobecnym w leaderboardzie pozostaje w raporcie na stdout.
 
-Kody wyjścia: **0** oznacza odczyt leaderboardu, także przy częściowych wynikach lub
-pustej liście modeli; **1** oznacza błąd odczytu lub walidacji leaderboardu;
+Kody wyjścia: **0** oznacza udane wykonanie, także przy częściowych wynikach, pustym
+leaderboardzie lub pustej liście obserwowanych modeli; **1** oznacza błąd odczytu lub walidacji leaderboardu;
 **2** oznacza błędne argumenty lub konfigurację. Kod 0 nie gwarantuje kompletności danych.
-Pusty leaderboard daje ostrzeżenie na stderr i nie tworzy raportu.
+Przy niepustej liście obserwowanych modeli pusty leaderboard daje ostrzeżenie na stderr i nie tworzy raportu.
 
 Strumienie można zapisać osobno:
 
 ```bash
 aimeter -v >report.txt 2>diagnostics.txt
 ```
+
+### Pobieranie historii
+
+Po jednokrotnym odczycie leaderboardu aimeter pobiera wybrane historie przez
+maksymalnie 4 równoczesne zapytania HTTP, ajwyżej raz na
+uruchomienie na identyfikator historii. Awaria historii nadal daje częściowy wynik i ostrzeżenie, także przy HTTP 429; zapytania nie są automatycznie ponawiane.
+
+Gdy stderr jest terminalem, przed pobieraniem historii pojawia się komunikat
+`[INFO] Pobieranie historii modeli…`. Przekierowanie stderr wyłącza ten komunikat
+postępu. Raport jest drukowany po zakończeniu wszystkich odczytów historii.
+Puste `watched_models = []` daje podsumowanie z zerową liczbą modeli bez żadnego HTTP.
+
+ Nie ma cache między uruchomieniami ani nowych zależności produkcyjnych.
 
 ### Konfiguracja
 

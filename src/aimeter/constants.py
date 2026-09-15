@@ -9,6 +9,8 @@ HISTORY_URL = (
     f"?period=7d&sortBy={SCORING_MODE}"
 )
 REQUEST_TIMEOUT = 10
+# Client-side concurrency limit; not an advertised API rate limit.
+HISTORY_MAX_WORKERS = 4
 
 # Próg decyzyjny dla etykiety: max(MIN_THRESHOLD, SE * SE_THRESHOLD_SCALE).
 MIN_THRESHOLD = 5.0
