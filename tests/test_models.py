@@ -14,6 +14,8 @@ from aimeter.models import (
     AnalysisError,
     LeaderboardEntry,
     ModelResult,
+    PeriodStats,
+    Trend,
     analyze_model,
     compute_period_stats,
 )
@@ -93,6 +95,7 @@ def test_delta_overflow_preserves_scores_but_produces_no_assessment(
     assert result.threshold is None
     assert result.label == LABEL_NO_DATA
     assert not result.strong_signal
+    assert result.strong_signal_assessment is None
     assert result.analysis_error is not None
 
 
@@ -108,6 +111,7 @@ def test_missing_score_keeps_history_without_a_false_assessment() -> None:
     assert result.label == LABEL_NO_DATA
     assert result.analysis_error is None
     assert not result.strong_signal
+    assert result.strong_signal_assessment is None
 
 
 def test_missing_trend_does_not_block_a_large_drop_signal() -> None:
@@ -183,8 +187,89 @@ def test_analyze_model_no_history() -> None:
     assert result.label == LABEL_NO_DATA
     assert result.delta is None
     assert result.found is True
+    assert result.strong_signal_assessment is None
+    assert not result.strong_signal
 
 
 def test_analyze_model_not_found() -> None:
     result = analyze_model("missing-model", None)
     assert not result.found
+    assert result.strong_signal_assessment is None
+    assert not result.strong_signal
+
+
+@pytest.mark.parametrize(
+    "delta,label",
+    [
+        (math.nextafter(-5.0, -math.inf), LABEL_WORSENED),
+        (-5.0, LABEL_WORSENED),
+        (math.nextafter(-5.0, math.inf), LABEL_STABLE),
+        (math.nextafter(5.0, -math.inf), LABEL_STABLE),
+        (5.0, LABEL_IMPROVED),
+        (math.nextafter(5.0, math.inf), LABEL_IMPROVED),
+    ],
+)
+def test_labels_use_unrounded_delta_at_both_boundaries(delta: float, label: str) -> None:
+    result = analyze_model(
+        "example", replace(ENTRY, current_score=delta, trend="down"),
+        period_stats=compute_period_stats([0.0]),
+    )
+    assert result.delta == delta
+    assert result.label == label
+    assert result.strong_signal == (label == LABEL_WORSENED)
+
+
+@pytest.mark.parametrize(
+    "delta,strong",
+    [
+        (math.nextafter(-10.0, math.inf), False),
+        (-10.0, True),
+        (math.nextafter(-10.0, -math.inf), True),
+    ],
+)
+def test_large_drop_uses_unrounded_delta_at_its_boundary(delta: float, strong: bool) -> None:
+    result = analyze_model(
+        "example", replace(ENTRY, current_score=delta),
+        period_stats=compute_period_stats([0.0]),
+    )
+    assert result.label == LABEL_WORSENED
+    assert result.strong_signal_assessment is not None
+    assert result.strong_signal_assessment.large_drop is strong
+    assert result.strong_signal is strong
+
+
+@pytest.mark.parametrize("se,threshold", [(None, 5.0), (20.0, 14.0)])
+@pytest.mark.parametrize(
+    "delta_factor,trend,applicable,large_drop,cusum_down,strong",
+    [
+        (-1.2, "stable", True, False, False, False),
+        (-2.0, "stable", True, True, False, True),
+        (-1.2, "down", True, False, True, True),
+        (-2.0, "down", True, True, True, True),
+        (2.0, "down", False, False, True, False),
+        (0.0, "down", False, False, True, False),
+        (-0.9, "down", False, False, True, False),
+        (-2.0, "up", True, True, False, True),
+        (-2.0, None, True, True, False, True),
+        (-1.2, None, True, False, False, False),
+    ],
+)
+def test_strong_signal_retains_applicability_threshold_and_reasons(
+    se: float | None, threshold: float, delta_factor: float, trend: Trend | None,
+    applicable: bool, large_drop: bool, cusum_down: bool, strong: bool,
+) -> None:
+    result = analyze_model(
+        "example", replace(ENTRY, current_score=delta_factor * threshold, trend=trend),
+        period_stats=PeriodStats(
+            period_avg=0, period_max=0, standard_error=se, data_points=2,
+        ),
+    )
+    assessment = result.strong_signal_assessment
+    assert assessment is not None
+    assert result.threshold == threshold
+    assert assessment.applicable is applicable
+    assert assessment.large_drop_threshold == 2 * threshold
+    assert assessment.large_drop is large_drop
+    assert assessment.cusum_down is cusum_down
+    assert assessment.is_strong is strong
+    assert result.strong_signal is strong

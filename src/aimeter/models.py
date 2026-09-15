@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 from aimeter.constants import (
-    CUMUL_SUM_LABEL,
-    CUSUM_ARROWS,
     LABEL_IMPROVED,
     LABEL_NO_DATA,
     LABEL_STABLE,
@@ -90,6 +88,18 @@ def _compute_period_stats(scores: list[float]) -> PeriodStats:
     )
 
 
+@dataclass(frozen=True)
+class StrongSignalAssessment:
+    applicable: bool
+    large_drop_threshold: float
+    large_drop: bool
+    cusum_down: bool
+
+    @property
+    def is_strong(self) -> bool:
+        return self.applicable and (self.large_drop or self.cusum_down)
+
+
 @dataclass
 class ModelResult:
     name: str
@@ -102,7 +112,7 @@ class ModelResult:
     delta: float | None
     threshold: float | None
     label: str
-    strong_signal: bool
+    strong_signal_assessment: StrongSignalAssessment | None = None
     found: bool = True
     data_points: int | None = None
     period_max: float | None = None
@@ -110,6 +120,11 @@ class ModelResult:
     confidence_lower: float | None = None
     confidence_upper: float | None = None
     analysis_error: str | None = None
+
+    @property
+    def strong_signal(self) -> bool:
+        assessment = self.strong_signal_assessment
+        return assessment is not None and assessment.is_strong
 
 
 def compute_threshold(standard_error: float | None) -> float:
@@ -127,19 +142,14 @@ def compute_label(delta: float, threshold: float) -> str:
 
 def compute_strong_signal(
     label: str, delta: float, threshold: float, trend: Trend | None
-) -> bool:
-    if label != LABEL_WORSENED:
-        return False
-    if abs(delta) >= STRONG_SIGNAL_MULTIPLIER * threshold:
-        return True
-    if trend == "down":
-        return True
-    return False
-
-
-def format_cusum(trend: Trend | None) -> str:
-    arrow = CUSUM_ARROWS.get(trend or "", "?")
-    return f"{CUMUL_SUM_LABEL}:{arrow}"
+) -> StrongSignalAssessment:
+    large_drop_threshold = STRONG_SIGNAL_MULTIPLIER * threshold
+    return StrongSignalAssessment(
+        applicable=label == LABEL_WORSENED,
+        large_drop_threshold=large_drop_threshold,
+        large_drop=delta <= -large_drop_threshold,
+        cusum_down=trend == "down",
+    )
 
 
 def analyze_model(
@@ -160,7 +170,6 @@ def analyze_model(
             delta=None,
             threshold=None,
             label=LABEL_STABLE,
-            strong_signal=False,
             found=False,
         )
 
@@ -197,7 +206,6 @@ def analyze_model(
             delta=None,
             threshold=None,
             label=LABEL_NO_DATA,
-            strong_signal=False,
             data_points=data_points,
             period_max=period_max,
             stability=stability,
@@ -215,11 +223,11 @@ def analyze_model(
         delta = None
         threshold = None
         label = LABEL_NO_DATA
-        strong_signal = False
+        strong_signal_assessment = None
         analysis_error = "Cannot compute a finite model assessment"
     else:
         label = compute_label(delta, threshold)
-        strong_signal = compute_strong_signal(label, delta, threshold, trend)
+        strong_signal_assessment = compute_strong_signal(label, delta, threshold, trend)
 
     return ModelResult(
         name=name,
@@ -232,7 +240,7 @@ def analyze_model(
         delta=delta,
         threshold=threshold,
         label=label,
-        strong_signal=strong_signal,
+        strong_signal_assessment=strong_signal_assessment,
         data_points=data_points,
         period_max=period_max,
         stability=stability,

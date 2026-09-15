@@ -162,6 +162,8 @@ a sufficiently large drop. Invalid optional metadata is omitted.
 The **strong signal `[!!]`** appears only with `pogorszył się` (worsened) and when at least one condition is met:
 the drop is large relative to the threshold (|Δ| ≥ 2 × threshold), or CUSUM also indicates deterioration.
 Without `[!!]`, the `pogorszył się` label is a weaker signal — it may reflect noise or a temporary dip.
+Near a threshold, comparisons show one decimal place; if that still hides the difference, `≈` marks approximate values and the explanation states whether the value is below or above the threshold before rounding.
+The Δ calculation line also uses `≈` when any displayed value is rounded.
 
 **CUSUM** (Cumulative Sum) is an independent API algorithm that looks at a ~48-hour window. It answers
 "is the model changing *now*?", rather than "is it worse than a week ago?". It is shown as context,
@@ -331,6 +333,8 @@ z wystarczająco dużego spadku. Niepoprawne opcjonalne metadane są pomijane.
 **Silny sygnał `[!!]`** — pojawia się tylko przy `pogorszył się` i gdy spełniony jest co najmniej jeden warunek:
 duży spadek względem progu (|Δ| ≥ 2 × próg) albo CUSUM też wskazuje na pogorszenie.
 Bez `[!!]` etykieta `pogorszył się` jest słabszym sygnałem — może być szum lub chwilowy dip.
+Przy granicy progu porównania pokazują jedno miejsce po przecinku; jeśli nadal ukrywa to różnicę, `≈` oznacza wartości przybliżone, a opis wyjaśnia, czy wynik jest poniżej czy powyżej progu przed zaokrągleniem.
+Linia obliczania Δ również używa `≈`, jeśli którakolwiek pokazana wartość jest zaokrąglona.
 
 **CUSUM** (Cumulative Sum) to niezależny algorytm API patrzący w okno ~48h. Odpowiada na pytanie
 "czy model zmienia się *teraz*?", nie "czy jest gorszy niż tydzień temu?". Pokazywany jako kontekst,

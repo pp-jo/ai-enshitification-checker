@@ -3,6 +3,7 @@ from typing import Literal
 
 from aimeter.constants import (
     CUMUL_SUM_LABEL,
+    CUSUM_ARROWS,
     LABEL_IMPROVED,
     LABEL_NO_DATA,
     LABEL_STABLE,
@@ -12,7 +13,7 @@ from aimeter.constants import (
     SE_THRESHOLD_SCALE,
     STRONG_SIGNAL_MULTIPLIER,
 )
-from aimeter.models import ModelResult, format_cusum
+from aimeter.models import ModelResult, Trend
 
 
 def format_header() -> str:
@@ -33,6 +34,11 @@ def format_se(standard_error: float | None) -> str:
     if standard_error > SE_HIGH_THRESHOLD:
         return f"{se_text} (SE↕)"
     return se_text
+
+
+def format_cusum(trend: Trend | None) -> str:
+    arrow = CUSUM_ARROWS.get(trend or "", "?")
+    return f"{CUMUL_SUM_LABEL}:{arrow}"
 
 
 def format_model_line(result: ModelResult) -> str:
@@ -128,6 +134,29 @@ _CUSUM_DESC = {
 _INDENT = "    "
 
 
+def _format_threshold_comparison(
+    value: float,
+    threshold: float,
+    relation: Literal["<", "≥", "≤"],
+    *,
+    value_label: str = "Δ",
+    threshold_label: str = "próg",
+) -> str:
+    """Show a decided comparison without hiding differences through rounding."""
+    value_text, threshold_text = f"{value:.0f}", f"{abs(threshold):.1f}"
+    if threshold < 0:
+        threshold_label = f"−{threshold_label}"
+    if value_text == f"{threshold:.0f}":
+        value_text = f"{value:.1f}"
+        if value != threshold and value_text == f"{threshold:.1f}":
+            position = "powyżej" if relation == "≥" else "poniżej"
+            return (
+                f"{value_label}(≈{value_text}), {threshold_label}(≈{threshold_text}): "
+                f"{position} progu przed zaokrągleniem"
+            )
+    return f"{value_label}({value_text}) {relation} {threshold_label}({threshold_text})"
+
+
 def format_verbose_v1(result: ModelResult) -> list[str]:
     """Obliczenia Δ, progu i logiki [!!] — poziom -v."""
     if not result.found:
@@ -137,11 +166,13 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
         f"{_INDENT}→ {format_cusum(result.trend)}  "
         f"{_CUSUM_DESC.get(result.trend or '', 'brak informacji o trendzie')}"
     )
+    assessment = result.strong_signal_assessment
     if (
         result.delta is None
         or result.threshold is None
         or result.current_score is None
         or result.period_avg is None
+        or assessment is None
     ):
         return [
             f"{_INDENT}→ brak wystarczających danych do obliczenia Δ",
@@ -153,8 +184,14 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
     score = f"{result.current_score:.0f}"
     avg = f"{result.period_avg:.0f}"
     sign = "+" if result.delta >= 0 else ""
+    rounded = any(
+        value != round(value)
+        for value in (result.current_score, result.period_avg, result.delta)
+    )
+    equality = "≈" if rounded else "="
     lines.append(
-        f"{_INDENT}→ Δ = wynik({score}) − 7d śr.({avg}) = {sign}{result.delta:.0f}"
+        f"{_INDENT}→ Δ {equality} wynik({score}) − 7d śr.({avg})"
+        f" {equality} {sign}{result.delta:.0f}"
     )
 
     se = result.standard_error or 0.0
@@ -169,29 +206,30 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
 
     delta_abs = abs(result.delta)
     if result.label == LABEL_IMPROVED:
-        rationale = f"Δ({sign}{result.delta:.0f}) ≥ +próg({result.threshold:.1f})"
+        rationale = _format_threshold_comparison(result.delta, result.threshold, "≥")
     elif result.label == LABEL_WORSENED:
-        rationale = f"Δ({result.delta:.0f}) ≤ −próg({result.threshold:.1f})"
+        rationale = _format_threshold_comparison(result.delta, -result.threshold, "≤")
     else:
-        rationale = f"|Δ|({delta_abs:.0f}) < próg({result.threshold:.1f})"
+        rationale = _format_threshold_comparison(
+            delta_abs, result.threshold, "<", value_label="|Δ|"
+        )
     lines.append(f"{_INDENT}→ ocena: {rationale}  →  {result.label}")
 
-    if result.label != LABEL_WORSENED:
+    if not assessment.applicable:
         lines.append(f"{_INDENT}→ [!!]: nie dotyczy (ocena ≠ pogorszył się)")
     else:
-        threshold_x = STRONG_SIGNAL_MULTIPLIER * result.threshold
         mult = f"{STRONG_SIGNAL_MULTIPLIER:.0f}"
-        big_drop = delta_abs >= threshold_x
-        cusum_down = result.trend == "down"
-        cond_drop = (
-            f"|Δ|({delta_abs:.0f}) ≥ {mult}×próg({threshold_x:.1f}) ✓"
-            if big_drop
-            else f"|Δ|({delta_abs:.0f}) < {mult}×próg({threshold_x:.1f})"
+        cond_drop = _format_threshold_comparison(
+            delta_abs, assessment.large_drop_threshold,
+            "≥" if assessment.large_drop else "<",
+            value_label="|Δ|", threshold_label=f"{mult}×próg",
         )
+        if assessment.large_drop:
+            cond_drop += " ✓"
         cond_cusum = (
-            f"{CUMUL_SUM_LABEL}:↓ ✓" if cusum_down else f"{CUMUL_SUM_LABEL}:↓? nie"
+            f"{CUMUL_SUM_LABEL}:↓ ✓" if assessment.cusum_down else f"{CUMUL_SUM_LABEL}:↓? nie"
         )
-        verdict = "tak → [!!]" if result.strong_signal else "nie → brak [!!]"
+        verdict = "tak → [!!]" if assessment.is_strong else "nie → brak [!!]"
         lines.append(f"{_INDENT}→ [!!]: {cond_drop}   {cond_cusum}   →  {verdict}")
 
     lines.append(cusum_line)
