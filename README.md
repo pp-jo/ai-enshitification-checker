@@ -48,6 +48,29 @@ uv tool upgrade aimeter
 uv run pytest
 ```
 
+### Output and diagnostics
+
+The report goes to stdout. API errors and warnings go to stderr, including history
+failures (HTTP status, timeout, network errors, invalid JSON or data), discarded
+history point counts, invalid leaderboard fields, and numeric calculation errors.
+Warnings include the model and field where available and appear once, even without `-v`.
+
+With `-v` or `-vv`, stderr also includes `[INFO]` explanations for a missing current
+score, an empty history, or a missing history identifier. A valid empty history is
+not a request failure. Available scores and history statistics remain in the report.
+Models absent from the leaderboard keep their existing warning in the stdout report.
+
+Exit codes: **0** means the leaderboard was read, including partial results or an
+empty model list; **1** means the leaderboard could not be read or validated;
+**2** means invalid arguments or configuration. Code 0 does not guarantee complete data.
+An empty leaderboard produces a warning on stderr and no report.
+
+To capture the streams separately:
+
+```bash
+aimeter -v >report.txt 2>diagnostics.txt
+```
+
 ### Configuration
 
 You can save a custom list of watched models in a TOML file without editing the code.
@@ -194,6 +217,29 @@ uv tool upgrade aimeter
 
 ```bash
 uv run pytest
+```
+
+### Wyjście i diagnostyka
+
+Raport trafia na stdout, a błędy i ostrzeżenia API na stderr. Diagnostyka obejmuje
+awarie historii (status HTTP, timeout, błędy sieci, JSON-a lub struktury danych),
+liczbę odrzuconych punktów, błędne pola leaderboardu i błędy obliczeń.
+Ostrzeżenia podają model i pole, gdy są znane, oraz pojawiają się raz, także bez `-v`.
+
+Przy `-v` i `-vv` stderr zawiera też informacje `[INFO]` o braku bieżącego wyniku,
+pustej historii lub braku identyfikatora historii. Poprawna pusta historia nie jest
+awarią zapytania. Raport zachowuje dostępne wyniki i statystyki historii.
+Dotychczasowy komunikat o modelu nieobecnym w leaderboardzie pozostaje w raporcie na stdout.
+
+Kody wyjścia: **0** oznacza odczyt leaderboardu, także przy częściowych wynikach lub
+pustej liście modeli; **1** oznacza błąd odczytu lub walidacji leaderboardu;
+**2** oznacza błędne argumenty lub konfigurację. Kod 0 nie gwarantuje kompletności danych.
+Pusty leaderboard daje ostrzeżenie na stderr i nie tworzy raportu.
+
+Strumienie można zapisać osobno:
+
+```bash
+aimeter -v >report.txt 2>diagnostics.txt
 ```
 
 ### Konfiguracja

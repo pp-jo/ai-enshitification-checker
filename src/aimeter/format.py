@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from aimeter.constants import (
     CUMUL_SUM_LABEL,
@@ -61,10 +62,20 @@ def format_model_line(result: ModelResult) -> str:
     return "  ".join(parts)
 
 
+def format_diagnostic(
+    detail: str,
+    *,
+    name: str | None = None,
+    level: Literal["INFO", "WARN", "ERROR"] = "WARN",
+) -> str:
+    context = f"{name}: " if name is not None else ""
+    return f"[{level}] {context}{detail}"
+
+
 def format_missing_model(name: str) -> str:
-    return (
-        f"[WARN] {name}: not found in API — "
-        "model may have been renamed, check the watched list"
+    return format_diagnostic(
+        "not found in API — model may have been renamed, check the watched list",
+        name=name,
     )
 
 
