@@ -1,12 +1,156 @@
 # aimeter
 
+[English](#english) | [Polski](#polski)
+
+## English
+
+A CLI for checking AI model trends using the public [AI Stupid Meter](https://aistupidlevel.info/) API.
+
+It compares the current score with the 7-day average and prints a short summary in the terminal.
+
+A vibe-coded prototype.
+
+### Installation
+
+```bash
+uv tool install /path/to/this/repo
+```
+
+Or locally:
+
+```bash
+uv sync --dev
+```
+
+### Usage
+
+```bash
+aimeter
+```
+
+Or from the repository:
+
+```bash
+uv run aimeter
+```
+
+Supports up to 2 verbosity levels (anything beyond `-vv` is treated as `-vv`).
+
+To update, run:
+
+```bash
+uv tool upgrade aimeter
+```
+
+### Tests
+
+```bash
+uv run pytest
+```
+
+### Configuration
+
+You can save a custom list of watched models in a TOML file without editing the code.
+The program selects its configuration in the following order:
+
+1. The file specified by the `--config /path/to/config.toml` flag.
+2. The user configuration file: `$XDG_CONFIG_HOME/aimeter/config.toml`, or
+   `~/.config/aimeter/config.toml` if the variable is unset, empty, or contains a relative path.
+3. The built-in default list if `--config` is not provided and the user configuration file does not exist.
+
+#### Configuration file
+
+Create an `aimeter` directory in your chosen configuration location, then create a
+`config.toml` file inside it, for example:
+
+```toml
+watched_models = [
+    "gpt-5.6-sol",
+    "gpt-5.5",
+    "claude-sonnet-4-6",
+    "kimi-k2.7-code",
+]
+```
+
+**The list in the file replaces the entire default list**, preserving the specified order.
+The `watched_models` field is required and must be a list of non-empty model names recognized
+by the API. An empty list, `watched_models = []`, means no models are watched.
+
+Once you save the file in the user configuration location, you can run `aimeter`
+from any directory.
+
+#### Linux, macOS, and Windows
+
+Default location when `XDG_CONFIG_HOME` is not set:
+
+| System | Example path |
+|---|---|
+| Linux | `/home/username/.config/aimeter/config.toml` |
+| macOS | `/Users/username/.config/aimeter/config.toml` |
+| Windows, including Git Bash | `C:/Users/username/.config/aimeter/config.toml` |
+
+On Windows, Python determines the home directory using `USERPROFILE`
+(or `HOMEDRIVE` and `HOMEPATH`). If you change `HOME` in Git Bash, Bash's `~` may
+point to a different location. When setting a custom `XDG_CONFIG_HOME` on Windows,
+use an absolute Windows path, such as `C:/Users/username/.config`.
+
+### How the assessment works
+
+Everything uses **COMBINED** mode — the same mode shown by default in the website's chart.
+
+The script fetches the following from the leaderboard (`sortBy=combined`):
+
+- `currentScore` — the current COMBINED score
+- `trend` — the CUSUM direction (the short-term trend over the last ~48 hours)
+
+We calculate the **7-day average and 7-day maximum** ourselves from the chart history:
+`dashboard/history/{id}?period=7d&sortBy=combined` — the arithmetic mean and highest value of the `score` points
+from the last 7 days (~42 measurements taken every 4 hours). We do not use `periodAvg` from the leaderboard API
+because it mixes COMBINED with TOOLING and REASONING, lowering the baseline relative to the chart.
+
+A higher score means better performance — the benchmarks measure coding ability.
+
+**Delta** is the difference: `current score − 7-day COMBINED average`. A positive delta means the model is performing better now than over the past week.
+
+The **threshold** is calculated dynamically from the measurement error (SE, or standard error, calculated from the same COMBINED points):
+`threshold = max(5, SE × 0.7)`. Models with widely varying scores (high SE) get a higher threshold
+so that small fluctuations do not trigger false alarms. The minimum threshold is 5.
+
+The **label** is assigned by comparing delta with the threshold (the CLI labels are in Polish):
+
+- `poprawił się` (improved) — delta ≥ +threshold
+- `pogorszył się` (worsened) — delta ≤ −threshold
+- `bez zmian` (unchanged) — delta falls within (−threshold, +threshold); a drop may be visible in Δ, but it does not exceed measurement noise
+- `brak danych` (no data) — the 7-day COMBINED history could not be fetched; the row shows the current score and CUSUM from the API, but no Δ or assessment
+
+**`-vv`** shows two types of numbers on one line:
+
+- **COMBINED 7d** (points, CI) — calculated locally from the chart history, using the same dataset as Δ and SE
+- **stabilność (API)** (stability) — the leaderboard's `stability` field; the server calculates it using its own method, whose exact inputs we do not know, so it provides just additional context and is not part of our assessment
+
+The **strong signal `[!!]`** appears only with `pogorszył się` (worsened) and when at least one condition is met:
+the drop is large relative to the threshold (|Δ| ≥ 2 × threshold), or CUSUM also indicates deterioration.
+Without `[!!]`, the `pogorszył się` label is a weaker signal — it may reflect noise or a temporary dip.
+
+**CUSUM** (Cumulative Sum) is an independent API algorithm that looks at a ~48-hour window. It answers
+"is the model changing *now*?", rather than "is it worse than a week ago?". It is shown as context,
+not as the main label. A disagreement between CUSUM and the label (for example, `pogorszył się` + `CUSUM:↑`)
+means the model declined over the week but recovered slightly in the last 48 hours.
+
+**`SE↕`** appears when the measurement error exceeds 10 — the score is then unreliable and may
+vary significantly between benchmark runs.
+
+---
+
+## Polski
+
 CLI do sprawdzania trendów modeli AI na podstawie publicznego API [AI Stupid Meter](https://aistupidlevel.info/).
 
 Porównuje bieżący wynik z 7-dniową średnią i wypisuje krótkie podsumowanie w terminalu.
 
 Vibecoded prototyp.
 
-## Instalacja
+### Instalacja
 
 ```bash
 uv tool install /ścieżka/do/tego/repo
@@ -18,7 +162,7 @@ Albo lokalnie:
 uv sync --dev
 ```
 
-## Użycie
+### Użycie
 
 ```bash
 aimeter
@@ -32,19 +176,19 @@ uv run aimeter
 Obsługuje do 2 poziomów verbosity (cokolwiek ponad -vv traktowane jest jak -vv)
 
 
-W przypadku aktualizacji należy użyć:
+Żeby zaktualizować:
 
 ```bash
 uv tool upgrade aimeter
 ```
 
-## Testy
+### Testy
 
 ```bash
 uv run pytest
 ```
 
-## Konfiguracja
+### Konfiguracja
 
 Własną listę obserwowanych modeli możesz zapisać w pliku TOML, bez edytowania kodu.
 Program wybiera konfigurację w następującej kolejności:
@@ -54,7 +198,7 @@ Program wybiera konfigurację w następującej kolejności:
    ustawiona, jest pusta lub zawiera ścieżkę względną — `~/.config/aimeter/config.toml`.
 3. Wbudowana lista domyślna, jeśli nie podano `--config` i plik użytkownika nie istnieje.
 
-### Plik konfiguracyjny
+#### Plik konfiguracyjny
 
 Utwórz katalog `aimeter` w wybranej lokalizacji konfiguracji, a w nim plik
 `config.toml`, np.:
@@ -75,7 +219,7 @@ z API. Pusta lista `watched_models = []` oznacza, że żaden model nie jest obse
 Po zapisaniu pliku w lokalizacji użytkownika wystarczy uruchomić `aimeter`
 z dowolnego katalogu.
 
-### Linux, macOS i Windows
+#### Linux, macOS i Windows
 
 Domyślna lokalizacja przy braku `XDG_CONFIG_HOME`:
 
@@ -90,7 +234,7 @@ Na Windowsie katalog domowy jest wyznaczany przez Pythona na podstawie `USERPROF
 wskazywać inne miejsce. Własne `XDG_CONFIG_HOME` na Windowsie podaj jako pełną
 ścieżkę Windows, np. `C:/Users/uzytkownik/.config`.
 
-## Jak działa ocena
+### Jak działa ocena
 
 Wszystko opiera się o tryb **COMBINED** — ten sam, który domyślnie pokazuje wykres na stronie.
 
