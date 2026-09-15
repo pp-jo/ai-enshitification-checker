@@ -1,11 +1,13 @@
 import argparse
 import sys
 from dataclasses import dataclass
+from typing import Literal, TypeAlias
 
 from aimeter.api import ApiError, fetch_history, fetch_scores
 from aimeter.config import ConfigError, load_watched_models
 from aimeter.constants import WATCHED_MODELS
 from aimeter.format import (
+    format_diagnostic,
     format_header,
     format_legend,
     format_missing_model,
@@ -24,10 +26,16 @@ from aimeter.models import (
 from aimeter.parsing import LeaderboardData
 
 
+HistoryStatus: TypeAlias = Literal[
+    "ok", "empty", "missing_id", "request_error", "invalid_data", "numeric_error"
+]
+
+
 @dataclass
 class HistoryOutcome:
+    status: HistoryStatus
     stats: PeriodStats | None = None
-    error: str | None = None
+    detail: str | None = None
     discarded_points: int = 0
 
 
@@ -38,21 +46,45 @@ class ModelOutcome:
 
 
 def load_model_history(model_id: str | None) -> HistoryOutcome:
-    """Retain parsing and numeric issues for the later diagnostics layer."""
+    """Classify history availability and retain diagnostics without printing."""
     if model_id is None:
-        return HistoryOutcome()
+        return HistoryOutcome(
+            status="missing_id", detail="brak identyfikatora historii"
+        )
     try:
         history = fetch_history(model_id)
     except ApiError as exc:
-        return HistoryOutcome(error=str(exc))
+        if exc.kind == "invalid_response":
+            return HistoryOutcome(
+                status="invalid_data", detail=f"nieprawidłowe dane historii ({exc})"
+            )
+        reason = str(exc)
+        if exc.kind == "http" and exc.http_status is not None:
+            reason = f"HTTP {exc.http_status}"
+        return HistoryOutcome(
+            status="request_error", detail=f"nie udało się pobrać historii ({reason})"
+        )
+
+    if not history.scores:
+        if history.discarded_points:
+            return HistoryOutcome(
+                status="invalid_data",
+                detail="historia nie zawiera poprawnych punktów",
+                discarded_points=history.discarded_points,
+            )
+        return HistoryOutcome(status="empty", detail="historia jest pusta")
 
     try:
         stats = compute_period_stats(history.scores)
     except AnalysisError as exc:
         return HistoryOutcome(
-            error=str(exc), discarded_points=history.discarded_points
+            status="numeric_error",
+            detail=f"błąd obliczeń statystyk historii ({exc})",
+            discarded_points=history.discarded_points,
         )
-    return HistoryOutcome(stats=stats, discarded_points=history.discarded_points)
+    return HistoryOutcome(
+        status="ok", stats=stats, discarded_points=history.discarded_points
+    )
 
 
 def collect_model_outcomes(
@@ -68,6 +100,38 @@ def collect_model_outcomes(
     return outcomes
 
 
+def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str]:
+    """Prepare each issue once, including expected missing data in verbose mode."""
+    result, history = outcome.result, outcome.history
+    if not result.found:
+        return []
+
+    diagnostics: list[str] = []
+    if verbosity >= 1 and result.current_score is None:
+        diagnostics.append(format_diagnostic(
+            "brak bieżącego wyniku", name=result.name, level="INFO"
+        ))
+
+    history_warning = history.status in (
+        "request_error", "invalid_data", "numeric_error"
+    )
+    detail = history.detail
+    if history.discarded_points:
+        discarded = f"odrzucone punkty historii: {history.discarded_points}"
+        detail = f"{detail}; {discarded}" if detail else discarded
+        history_warning = True
+    if detail and (history_warning or verbosity >= 1):
+        diagnostics.append(format_diagnostic(
+            detail, name=result.name, level="WARN" if history_warning else "INFO"
+        ))
+
+    if result.analysis_error is not None:
+        diagnostics.append(format_diagnostic(
+            f"błąd obliczeń oceny ({result.analysis_error})", name=result.name
+        ))
+    return diagnostics
+
+
 def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
     models = WATCHED_MODELS.copy() if watched_models is None else watched_models
     lines: list[str] = [format_header(), ""]
@@ -75,16 +139,18 @@ def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
     try:
         leaderboard = fetch_scores()
     except ApiError as exc:
-        print(exc.message)
+        print(format_diagnostic(str(exc), level="ERROR"), file=sys.stderr)
         return 1
 
     if not leaderboard.by_name:
-        print("[WARN] API returned empty model list")
+        print(format_diagnostic("API returned empty model list"), file=sys.stderr)
         return 0
 
     outcomes = collect_model_outcomes(leaderboard, models)
+    diagnostics = [format_diagnostic(warning) for warning in leaderboard.warnings]
     for outcome in outcomes:
         result = outcome.result
+        diagnostics.extend(collect_model_diagnostics(outcome, verbosity))
         if not result.found:
             lines.append(format_missing_model(result.name))
         else:
@@ -97,6 +163,8 @@ def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
     lines.append("")
     lines.append(format_summary([outcome.result for outcome in outcomes]))
     lines.append(format_legend())
+    for diagnostic in dict.fromkeys(diagnostics):
+        print(diagnostic, file=sys.stderr)
     print("\n".join(lines))
     return 0
 

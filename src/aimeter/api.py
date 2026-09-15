@@ -2,7 +2,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import NoReturn
+from typing import Literal, NoReturn, TypeAlias
 
 from aimeter.constants import API_URL, HISTORY_URL, REQUEST_TIMEOUT
 from aimeter.parsing import (
@@ -14,9 +14,15 @@ from aimeter.parsing import (
 )
 
 
+ApiErrorKind: TypeAlias = Literal["http", "timeout", "network", "invalid_response"]
+
+
 class ApiError(Exception):
-    def __init__(self, message: str) -> None:
-        self.message = message
+    def __init__(
+        self, message: str, *, kind: ApiErrorKind, http_status: int | None = None
+    ) -> None:
+        self.kind = kind
+        self.http_status = http_status
         super().__init__(message)
 
 
@@ -29,19 +35,27 @@ def _fetch_json(url: str) -> object:
         with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT) as response:
             body = response.read()
     except urllib.error.HTTPError as exc:
-        raise ApiError(f"[ERROR] API returned HTTP {exc.code}") from exc
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise ApiError("[ERROR] API unreachable") from exc
+        raise ApiError(
+            f"API returned HTTP {exc.code}", kind="http", http_status=exc.code
+        ) from exc
+    except TimeoutError as exc:
+        raise ApiError("API request timeout", kind="timeout") from exc
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, TimeoutError):
+            raise ApiError("API request timeout", kind="timeout") from exc
+        raise ApiError("API unreachable", kind="network") from exc
+    except OSError as exc:
+        raise ApiError("API unreachable", kind="network") from exc
 
     try:
         payload: object = json.loads(
             body.decode("utf-8"), parse_constant=_reject_json_constant
         )
     except ValueError as exc:
-        raise ApiError("[ERROR] API returned invalid JSON") from exc
+        raise ApiError("API returned invalid JSON", kind="invalid_response") from exc
 
     if not isinstance(payload, dict):
-        raise ApiError("[ERROR] API response is not a JSON object")
+        raise ApiError("API response is not a JSON object", kind="invalid_response")
 
     return payload
 
@@ -51,7 +65,7 @@ def fetch_scores(url: str = API_URL) -> LeaderboardData:
     try:
         return parse_leaderboard(payload)
     except PayloadError as exc:
-        raise ApiError(f"[ERROR] {exc}") from exc
+        raise ApiError(str(exc), kind="invalid_response") from exc
 
 
 def fetch_history(model_id: str, url: str | None = None) -> HistoryData:
@@ -62,4 +76,4 @@ def fetch_history(model_id: str, url: str | None = None) -> HistoryData:
     try:
         return parse_history(payload)
     except PayloadError as exc:
-        raise ApiError(f"[ERROR] History: {exc}") from exc
+        raise ApiError(str(exc), kind="invalid_response") from exc

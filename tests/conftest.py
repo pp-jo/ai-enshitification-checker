@@ -37,7 +37,7 @@ def mock_fetch_history(
 ) -> Callable[[str], HistoryData]:
     def fetch(model_id: str) -> HistoryData:
         if model_id not in history_fixtures:
-            raise ApiError("[ERROR] History API returned success=false")
+            raise ApiError("API returned success=false", kind="invalid_response")
         return history_fixtures[model_id]
 
     return fetch

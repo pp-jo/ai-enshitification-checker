@@ -48,14 +48,15 @@ def test_run_model_not_in_response(
 
 def test_run_success_false(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     def raise_api_error() -> dict:
-        raise ApiError("[ERROR] API returned success=false")
+        raise ApiError("API returned success=false", kind="invalid_response")
 
     monkeypatch.setattr("aimeter.cli.fetch_scores", raise_api_error)
     exit_code = run()
-    output = capsys.readouterr().out
+    output = capsys.readouterr()
 
     assert exit_code == 1
-    assert "[ERROR] API returned success=false" in output
+    assert output.err == "[ERROR] API returned success=false\n"
+    assert output.out == ""
 
 
 def test_run_empty_data(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -64,10 +65,11 @@ def test_run_empty_data(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureF
         lambda: parse_leaderboard({"success": True, "data": []}),
     )
     exit_code = run()
-    output = capsys.readouterr().out
+    output = capsys.readouterr()
 
     assert exit_code == 0
-    assert "[WARN] API returned empty model list" in output
+    assert output.err == "[WARN] API returned empty model list\n"
+    assert output.out == ""
 
 
 def test_run_empty_watched_models_list(
@@ -134,18 +136,20 @@ def test_run_history_failure_shows_no_data_label(
     }
 
     def fail_history(_model_id: str) -> dict:
-        raise ApiError("[ERROR] API unreachable")
+        raise ApiError("API unreachable", kind="network")
 
     monkeypatch.setattr("aimeter.cli.fetch_scores", lambda: parse_leaderboard(payload))
     monkeypatch.setattr("aimeter.cli.fetch_history", fail_history)
     exit_code = run(["gpt-5.5"], verbosity=0)
-    output = capsys.readouterr().out
+    output = capsys.readouterr()
 
     assert exit_code == 0
-    assert "gpt-5.5:  47 (Δ—)  | brak danych  | 7d avg —  | 7d max —" in output
-    assert "Podsumowanie:" in output
-    assert "1 brak danych" in output
-    assert "0 bez zmian, 1 brak danych" in output
+    assert "gpt-5.5:  47 (Δ—)  | brak danych  | 7d avg —  | 7d max —" in output.out
+    assert "Podsumowanie:" in output.out
+    assert "1 brak danych" in output.out
+    assert "0 bez zmian, 1 brak danych" in output.out
+    assert "[WARN]" not in output.out
+    assert output.err == "[WARN] gpt-5.5: nie udało się pobrać historii (API unreachable)\n"
 
 
 def test_run_no_verbose_no_calculations(

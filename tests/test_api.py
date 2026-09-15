@@ -1,8 +1,9 @@
 import urllib.error
+from io import BytesIO
 
 import pytest
 
-from aimeter.api import ApiError, fetch_history, fetch_scores
+from aimeter.api import ApiError, ApiErrorKind, fetch_history, fetch_scores
 from aimeter.constants import API_URL, HISTORY_URL
 from aimeter.parsing import HistoryData, LeaderboardData
 
@@ -33,6 +34,9 @@ def test_invalid_json_is_a_controlled_api_error(
     http_responses[endpoint_url(endpoint)] = body
     with pytest.raises(ApiError, match="JSON") as exc:
         fetch_endpoint(endpoint)
+    assert exc.value.kind == "invalid_response"
+    assert exc.value.http_status is None
+    assert "[ERROR]" not in str(exc.value)
     if body not in (b"[]", b"true"):
         assert exc.value.__cause__ is not None
 
@@ -55,6 +59,9 @@ def test_envelope_errors_are_translated_to_api_errors(
     http_responses[endpoint_url(endpoint)] = body
     with pytest.raises(ApiError) as exc:
         fetch_endpoint(endpoint)
+    assert exc.value.kind == "invalid_response"
+    assert exc.value.http_status is None
+    assert "[ERROR]" not in str(exc.value)
     assert exc.value.__cause__ is not None
 
 
@@ -103,30 +110,45 @@ def test_history_id_is_encoded_as_a_single_path_segment(
     assert fetch_history("a/b?c=d#e").scores == []
 
 
+@pytest.mark.parametrize("endpoint", ["scores", "history"])
+@pytest.mark.parametrize("phase", ["open", "read"])
 @pytest.mark.parametrize(
-    "error",
+    "error,kind,message,http_status",
     [
-        TimeoutError("timeout"),
-        urllib.error.URLError("network"),
-        OSError("read failure"),
+        (urllib.error.HTTPError("url", 503, "error", None, None), "http", "HTTP 503", 503),
+        (urllib.error.HTTPError("url", 404, "error", None, None), "http", "HTTP 404", 404),
+        (TimeoutError("deadline exceeded"), "timeout", "timeout", None),
+        (urllib.error.URLError(TimeoutError("deadline exceeded")), "timeout", "timeout", None),
+        (urllib.error.URLError("network"), "network", "unreachable", None),
+        (urllib.error.URLError("timeout"), "network", "unreachable", None),
+        (OSError("read failure"), "network", "unreachable", None),
     ],
 )
-def test_history_network_errors_are_controlled(
-    error: Exception, http_responses: dict[str, bytes | Exception]
+def test_transport_errors_keep_their_kind_status_and_cause(
+    endpoint: str,
+    phase: str,
+    error: Exception,
+    kind: ApiErrorKind,
+    message: str,
+    http_status: int | None,
+    http_responses: dict[str, bytes | Exception],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    http_responses[HISTORY_URL.format(model_id="1")] = error
-    with pytest.raises(ApiError, match="unreachable") as exc:
-        fetch_history("1")
+    if phase == "open":
+        http_responses[endpoint_url(endpoint)] = error
+    else:
+        class FailedResponse(BytesIO):
+            def read(self, *_args: object) -> bytes:
+                raise error
+
+        monkeypatch.setattr("urllib.request.urlopen", lambda *_a, **_k: FailedResponse())
+
+    with pytest.raises(ApiError, match=message) as exc:
+        fetch_endpoint(endpoint)
+    assert exc.value.kind == kind
+    assert exc.value.http_status == http_status
     assert exc.value.__cause__ is error
-
-
-def test_fetch_scores_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def raise_http(*_args, **_kwargs):
-        raise urllib.error.HTTPError("url", 503, "error", None, None)
-
-    monkeypatch.setattr("urllib.request.urlopen", raise_http)
-    with pytest.raises(ApiError, match="HTTP 503"):
-        fetch_scores()
+    assert "[ERROR]" not in str(exc.value)
 
 
 def test_fetch_scores_rejects_non_object_json(monkeypatch: pytest.MonkeyPatch) -> None:
