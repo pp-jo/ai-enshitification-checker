@@ -46,7 +46,49 @@ uv run pytest
 
 ## Konfiguracja
 
-Lista obserwowanych modeli: `src/aimeter/constants.py` (`WATCHED_MODELS`).
+Własną listę obserwowanych modeli możesz zapisać w pliku TOML, bez edytowania kodu.
+Program wybiera konfigurację w następującej kolejności:
+
+1. Plik wskazany przez flagę `--config /ścieżka/do/config.toml`.
+2. Plik użytkownika: `$XDG_CONFIG_HOME/aimeter/config.toml`, a jeśli zmienna nie jest
+   ustawiona, jest pusta lub zawiera ścieżkę względną — `~/.config/aimeter/config.toml`.
+3. Wbudowana lista domyślna, jeśli nie podano `--config` i plik użytkownika nie istnieje.
+
+### Plik konfiguracyjny
+
+Utwórz katalog `aimeter` w wybranej lokalizacji konfiguracji, a w nim plik
+`config.toml`, np.:
+
+```toml
+watched_models = [
+    "gpt-5.6-sol",
+    "gpt-5.5",
+    "claude-sonnet-4-6",
+    "kimi-k2.7-code",
+]
+```
+
+**Lista z pliku zastępuje całą listę domyślną**, z zachowaniem podanej kolejności.
+Pole `watched_models` jest wymagane i musi być listą niepustych nazw modeli zgodnych
+z API. Pusta lista `watched_models = []` oznacza, że żaden model nie jest obserwowany.
+
+Po zapisaniu pliku w lokalizacji użytkownika wystarczy uruchomić `aimeter`
+z dowolnego katalogu.
+
+### Linux, macOS i Windows
+
+Domyślna lokalizacja przy braku `XDG_CONFIG_HOME`:
+
+| System | Przykładowa ścieżka |
+|---|---|
+| Linux | `/home/uzytkownik/.config/aimeter/config.toml` |
+| macOS | `/Users/uzytkownik/.config/aimeter/config.toml` |
+| Windows, także przez Git Bash | `C:/Users/uzytkownik/.config/aimeter/config.toml` |
+
+Na Windowsie katalog domowy jest wyznaczany przez Pythona na podstawie `USERPROFILE`
+(lub `HOMEDRIVE` i `HOMEPATH`). Jeśli zmieniono `HOME` w Git Bash, bashowe `~` może
+wskazywać inne miejsce. Własne `XDG_CONFIG_HOME` na Windowsie podaj jako pełną
+ścieżkę Windows, np. `C:/Users/uzytkownik/.config`.
 
 ## Jak działa ocena
 

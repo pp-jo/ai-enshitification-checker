@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from aimeter.api import ApiError, fetch_scores
-from aimeter.cli import run
+from aimeter.cli import main, run
 from aimeter.constants import LABEL_IMPROVED, LABEL_NO_DATA, LABEL_STABLE, LABEL_WORSENED
 from aimeter.format import format_model_line, format_summary
 from aimeter.models import (
@@ -274,6 +274,52 @@ def test_run_no_verbose_no_calculations(
 
     assert "→ Δ = wynik(" not in output
     assert "→ próg" not in output
+
+
+@pytest.mark.parametrize(
+    "source,model_name",
+    [
+        ("explicit", "kimi-k2.7-code"),
+        ("xdg", "kimi-k2.7-code"),
+        ("builtin", "kimi-k2.7-code"),
+        ("explicit", " \t kimi-k2.7-code \t "),
+        ("xdg", " \t kimi-k2.7-code \t "),
+    ],
+)
+def test_main_uses_selected_models(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    source: str,
+    model_name: str,
+) -> None:
+    patch_api(monkeypatch)
+    xdg_dir = tmp_path / "xdg"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_dir))
+    args = ["aimeter", "-vv"]
+    if source == "explicit":
+        path = tmp_path / "my models.toml"
+        args.extend(["--config", str(path)])
+    else:
+        path = xdg_dir / "aimeter" / "config.toml"
+    if source != "builtin":
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"watched_models = [{json.dumps(model_name)}]", encoding="utf-8"
+        )
+    monkeypatch.setattr("sys.argv", args)
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == 0
+    output = capsys.readouterr().out
+    assert "kimi-k2.7-code:" in output
+    assert "→ Δ = wynik(" in output
+    assert "punkty COMBINED 7d:" in output
+    assert ("gpt-5.5:" in output) == (source == "builtin")
+    if source != "builtin":
+        assert "not found in API" not in output
 
 
 def _result_with_label(label: str) -> ModelResult:

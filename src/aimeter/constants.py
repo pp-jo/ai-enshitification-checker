@@ -20,6 +20,7 @@ STRONG_SIGNAL_MULTIPLIER = 2.0
 # Powyżej tej wartości SE oznaczamy wynik markerem SE↕ jako mało wiarygodny.
 SE_HIGH_THRESHOLD = 10.0
 
+# Wbudowana lista domyślna, używana przy braku pliku konfiguracji użytkownika.
 WATCHED_MODELS = [
     "gpt-5.6-sol",
     "gpt-5.6-terra",

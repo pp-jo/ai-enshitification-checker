@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from aimeter.api import ApiError, fetch_history, fetch_scores, index_by_name
+from aimeter.config import ConfigError, load_watched_models
 from aimeter.constants import WATCHED_MODELS
 from aimeter.format import (
     format_header,
@@ -21,7 +22,7 @@ from aimeter.models import (
 
 
 def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
-    models = WATCHED_MODELS if watched_models is None else watched_models
+    models = WATCHED_MODELS.copy() if watched_models is None else watched_models
     lines: list[str] = [format_header(), ""]
     results: list[ModelResult] = []
 
@@ -82,7 +83,16 @@ def main() -> None:
             "  aimeter          — standardowy output\n"
             "  aimeter -v       — + obliczenia Δ, próg, logika [!!]\n"
             "  aimeter -vv      — + statystyki COMBINED 7d i stabilność (API)\n"
-            "  aimeter -vvv...  — odpowiednik -vv"
+            "  aimeter -vvv...  — odpowiednik -vv\n"
+            "  aimeter --config ./config.toml — własna lista modeli"
+        ),
+    )
+    parser.add_argument(
+        "--config",
+        metavar="PLIK",
+        help=(
+            "Plik TOML z listą modeli (domyślnie: "
+            "$XDG_CONFIG_HOME/aimeter/config.toml lub ~/.config/aimeter/config.toml)"
         ),
     )
     parser.add_argument(
@@ -93,4 +103,8 @@ def main() -> None:
         help="Więcej szczegółów (można powtórzyć: -v, -vv)",
     )
     args = parser.parse_args()
-    sys.exit(run(verbosity=args.verbosity))
+    try:
+        watched_models = load_watched_models(args.config)
+    except ConfigError as exc:
+        parser.error(str(exc))
+    sys.exit(run(watched_models=watched_models, verbosity=args.verbosity))
