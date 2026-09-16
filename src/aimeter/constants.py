@@ -12,6 +12,9 @@ REQUEST_TIMEOUT = 10
 # Client-side concurrency limit; not an advertised API rate limit.
 HISTORY_MAX_WORKERS = 4
 
+# Normal-distribution multiplier for a two-sided 95% confidence interval.
+NORMAL_95_CI_MULTIPLIER = 1.96
+
 # Label threshold: max(MIN_THRESHOLD, SE * SE_THRESHOLD_SCALE).
 MIN_THRESHOLD = 5.0
 SE_THRESHOLD_SCALE = 0.7
@@ -23,7 +26,7 @@ STRONG_SIGNAL_MULTIPLIER = 2.0
 SE_HIGH_THRESHOLD = 10.0
 
 # Built-in default list, used when no user config file exists.
-WATCHED_MODELS = [
+DEFAULT_WATCHED_MODELS = [
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",

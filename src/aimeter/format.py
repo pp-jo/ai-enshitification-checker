@@ -134,8 +134,8 @@ def _format_threshold_comparison(
     return f"{value_label}({value_text}) {relation} {threshold_label}({threshold_text})"
 
 
-def format_verbose_v1(result: ModelResult) -> list[str]:
-    """Δ, threshold, and [!!] logic — -v."""
+def format_calculations(result: ModelResult) -> list[str]:
+    """Explain Δ, the threshold, and the [!!] signal for -v output."""
     if not result.found:
         return []
 
@@ -173,12 +173,12 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
 
     se = result.standard_error or 0.0
     se_scaled = se * SE_THRESHOLD_SCALE
-    min_t = f"{MIN_THRESHOLD:.0f}"
+    min_threshold = f"{MIN_THRESHOLD:.0f}"
     scale = f"{SE_THRESHOLD_SCALE}"
     lines.append(
-        f"{_INDENT}→ threshold = max({min_t}, SE×{scale})"
-        f" = max({min_t}, {se:.1f}×{scale})"
-        f" = max({min_t}, {se_scaled:.1f}) = {result.threshold:.1f}"
+        f"{_INDENT}→ threshold = max({min_threshold}, SE×{scale})"
+        f" = max({min_threshold}, {se:.1f}×{scale})"
+        f" = max({min_threshold}, {se_scaled:.1f}) = {result.threshold:.1f}"
     )
 
     delta_abs = abs(result.delta)
@@ -195,31 +195,33 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
     if not assessment.applicable:
         lines.append(f"{_INDENT}→ [!!]: not applicable (label ≠ {LABEL_WORSENED})")
     else:
-        mult = f"{STRONG_SIGNAL_MULTIPLIER:.0f}"
-        cond_drop = _format_threshold_comparison(
+        signal_multiplier = f"{STRONG_SIGNAL_MULTIPLIER:.0f}"
+        drop_condition = _format_threshold_comparison(
             delta_abs,
             assessment.large_drop_threshold,
             "≥" if assessment.large_drop else "<",
             value_label="|Δ|",
-            threshold_label=f"{mult}×threshold",
+            threshold_label=f"{signal_multiplier}×threshold",
         )
         if assessment.large_drop:
-            cond_drop += " ✓"
-        cond_cusum = (
+            drop_condition += " ✓"
+        cusum_condition = (
             f"{CUMUL_SUM_LABEL}:↓ ✓"
             if assessment.cusum_down
             else f"{CUMUL_SUM_LABEL}:↓? no"
         )
         verdict = "yes → [!!]" if assessment.is_strong else "no → no [!!]"
-        lines.append(f"{_INDENT}→ [!!]: {cond_drop}   {cond_cusum}   →  {verdict}")
+        lines.append(
+            f"{_INDENT}→ [!!]: {drop_condition}   {cusum_condition}   →  {verdict}"
+        )
 
     lines.append(cusum_line)
 
     return lines
 
 
-def format_verbose_v2(result: ModelResult) -> list[str]:
-    """COMBINED 7d statistics (computed locally) + API metadata — -vv."""
+def format_extra_stats(result: ModelResult) -> list[str]:
+    """Show local COMBINED 7d statistics and API metadata for -vv output."""
     if not result.found:
         return []
 
@@ -228,9 +230,9 @@ def format_verbose_v2(result: ModelResult) -> list[str]:
     if result.data_points is not None:
         parts.append(f"COMBINED 7d points: {result.data_points}")
     if result.confidence_lower is not None and result.confidence_upper is not None:
-        cl = f"{result.confidence_lower:.0f}"
-        cu = f"{result.confidence_upper:.0f}"
-        parts.append(f"CI (COMBINED 7d): [{cl}, {cu}]")
+        confidence_lower = f"{result.confidence_lower:.0f}"
+        confidence_upper = f"{result.confidence_upper:.0f}"
+        parts.append(f"CI (COMBINED 7d): [{confidence_lower}, {confidence_upper}]")
     if result.stability is not None:
         parts.append(f"stability (API): {result.stability:.0f}/100")
 

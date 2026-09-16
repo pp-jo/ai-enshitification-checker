@@ -12,10 +12,10 @@ from aimeter.constants import (
     SE_HIGH_THRESHOLD,
 )
 from aimeter.format import (
+    format_calculations,
     format_legend,
     format_model_line,
     format_summary,
-    format_verbose_v1,
 )
 from aimeter.models import ModelResult, Trend, analyze_model, compute_period_stats
 from aimeter.parsing import parse_leaderboard
@@ -49,7 +49,7 @@ def test_trend_presentation_distinguishes_unknown_from_stable(
     )
     assert len(parsed.warnings) == warning_count
     assert f"Cumul. sum:{arrow}" in format_model_line(result)
-    verbose = "\n".join(format_verbose_v1(result))
+    verbose = "\n".join(format_calculations(result))
     assert f"Cumul. sum:{arrow}" in verbose
     assert ("no trend information" in verbose) == (arrow == "?")
 
@@ -66,7 +66,7 @@ def test_verbose_calculations_check_required_scores(missing_field: str) -> None:
         "example", entry, period_stats=compute_period_stats([50.0, 50.0])
     )
     result = replace(result, **{missing_field: None})
-    assert "not enough data" in "\n".join(format_verbose_v1(result))
+    assert "not enough data" in "\n".join(format_calculations(result))
 
 
 def _result_with_label(label: str) -> ModelResult:
@@ -211,7 +211,7 @@ def test_signal_marker_and_explanation_share_the_same_reasons(
 ) -> None:
     result = _signal_result(delta, trend)
     assert (" [!!]" in format_model_line(result)) is strong
-    assert f"    → [!!]: {reason}" in format_verbose_v1(result)
+    assert f"    → [!!]: {reason}" in format_calculations(result)
 
 
 @pytest.mark.parametrize(
@@ -252,7 +252,7 @@ def test_verbose_label_boundary_is_not_hidden_by_rounding(
 ) -> None:
     result = _signal_result(delta)
     assert result.label == label
-    verbose = format_verbose_v1(result)
+    verbose = format_calculations(result)
     assert f"    → label: {comparison}  →  {label}" in verbose
     if delta in (-5, 5):
         assert verbose[0].startswith("    → Δ = score(")
@@ -290,7 +290,7 @@ def test_verbose_large_drop_boundary_matches_marker_and_verdict(
     verdict = "yes → [!!]" if strong else "no → no [!!]"
     assert (
         f"    → [!!]: {comparison}   Cumul. sum:↓? no   →  {verdict}"
-        in format_verbose_v1(result)
+        in format_calculations(result)
     )
 
 
@@ -309,7 +309,7 @@ def test_unknown_trend_does_not_confirm_or_block_the_drop_reason(
     ).by_name["example"]
     result = analyze_model("example", entry, period_stats=compute_period_stats([0.0]))
     assert (" [!!]" in format_model_line(result)) is strong
-    verbose = "\n".join(format_verbose_v1(result))
+    verbose = "\n".join(format_calculations(result))
     assert "Cumul. sum:↓? no" in verbose
     assert "Cumul. sum:↓ ✓" not in verbose
     assert "Cumul. sum:?" in verbose
