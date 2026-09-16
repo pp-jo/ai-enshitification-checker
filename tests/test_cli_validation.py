@@ -12,10 +12,12 @@ def set_responses(
     bad_entry: dict[str, object],
     bad_history: bytes = b'{"success":true,"data":[{"score":50},{"score":50}]}',
 ) -> None:
-    responses[API_URL] = json.dumps({
-        "success": True,
-        "data": [bad_entry, {"name": "good", "id": "2", "currentScore": 55}],
-    }).encode()
+    responses[API_URL] = json.dumps(
+        {
+            "success": True,
+            "data": [bad_entry, {"name": "good", "id": "2", "currentScore": 55}],
+        }
+    ).encode()
     responses[HISTORY_URL.format(model_id="1")] = bad_history
     responses[HISTORY_URL.format(model_id="2")] = (
         b'{"success":true,"data":[{"score":50},{"score":50}]}'
@@ -49,7 +51,10 @@ def test_bad_fields_do_not_crash_or_hide_healthy_models(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     entry: dict[str, object] = {
-        "name": "bad", "id": "1", "currentScore": 55, "trend": "stable",
+        "name": "bad",
+        "id": "1",
+        "currentScore": 55,
+        "trend": "stable",
     }
     entry[field] = value
     set_responses(http_responses, entry)
@@ -145,8 +150,7 @@ def test_numeric_history_error_is_retained_without_printing(
     http_responses: dict[str, bytes | Exception], capsys: pytest.CaptureFixture[str]
 ) -> None:
     http_responses[HISTORY_URL.format(model_id="1")] = (
-        b'{"success":true,"data":['
-        b'{"score":1e308},{"score":-1e308},{"score":true}]}'
+        b'{"success":true,"data":[{"score":1e308},{"score":-1e308},{"score":true}]}'
     )
     outcome = load_model_history("1")
     assert outcome.stats is None

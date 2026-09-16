@@ -13,7 +13,6 @@ from aimeter.parsing import (
     parse_leaderboard,
 )
 
-
 ApiErrorKind: TypeAlias = Literal["http", "timeout", "network", "invalid_response"]
 
 

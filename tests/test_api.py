@@ -20,13 +20,25 @@ def endpoint_url(endpoint: str) -> str:
 @pytest.mark.parametrize(
     "body",
     [
-        b"{", b"\xff", b"[]", b"true",
+        b"{",
+        b"\xff",
+        b"[]",
+        b"true",
         b'{"success": true, "data": [], "extra": NaN}',
         b'{"success": true, "data": [], "extra": Infinity}',
         b'{"success": true, "data": [], "extra": -Infinity}',
         b'{"success": true, "data": [], "extra": ' + b"1" * 5000 + b"}",
     ],
-    ids=["syntax", "encoding", "array", "boolean", "nan", "inf", "negative-inf", "huge-int"],
+    ids=[
+        "syntax",
+        "encoding",
+        "array",
+        "boolean",
+        "nan",
+        "inf",
+        "negative-inf",
+        "huge-int",
+    ],
 )
 def test_invalid_json_is_a_controlled_api_error(
     endpoint: str, body: bytes, http_responses: dict[str, bytes | Exception]
@@ -85,7 +97,8 @@ def test_large_json_integer_is_rejected_at_field_level(
 ) -> None:
     http_responses[API_URL] = (
         b'{"success":true,"data":[{"name":"example","currentScore":'
-        + str(10**400).encode() + b"}]}"
+        + str(10**400).encode()
+        + b"}]}"
     )
     assert fetch_scores().by_name["example"].current_score is None
 
@@ -115,10 +128,25 @@ def test_history_id_is_encoded_as_a_single_path_segment(
 @pytest.mark.parametrize(
     "error,kind,message,http_status",
     [
-        (urllib.error.HTTPError("url", 503, "error", None, None), "http", "HTTP 503", 503),
-        (urllib.error.HTTPError("url", 404, "error", None, None), "http", "HTTP 404", 404),
+        (
+            urllib.error.HTTPError("url", 503, "error", None, None),
+            "http",
+            "HTTP 503",
+            503,
+        ),
+        (
+            urllib.error.HTTPError("url", 404, "error", None, None),
+            "http",
+            "HTTP 404",
+            404,
+        ),
         (TimeoutError("deadline exceeded"), "timeout", "timeout", None),
-        (urllib.error.URLError(TimeoutError("deadline exceeded")), "timeout", "timeout", None),
+        (
+            urllib.error.URLError(TimeoutError("deadline exceeded")),
+            "timeout",
+            "timeout",
+            None,
+        ),
         (urllib.error.URLError("network"), "network", "unreachable", None),
         (urllib.error.URLError("timeout"), "network", "unreachable", None),
         (OSError("read failure"), "network", "unreachable", None),
@@ -137,11 +165,14 @@ def test_transport_errors_keep_their_kind_status_and_cause(
     if phase == "open":
         http_responses[endpoint_url(endpoint)] = error
     else:
+
         class FailedResponse(BytesIO):
             def read(self, *_args: object) -> bytes:
                 raise error
 
-        monkeypatch.setattr("urllib.request.urlopen", lambda *_a, **_k: FailedResponse())
+        monkeypatch.setattr(
+            "urllib.request.urlopen", lambda *_a, **_k: FailedResponse()
+        )
 
     with pytest.raises(ApiError, match=message) as exc:
         fetch_endpoint(endpoint)

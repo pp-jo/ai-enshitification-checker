@@ -26,15 +26,18 @@ def block_unexpected_http(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.parametrize("model_count", [1, 2, 3, 4, 7])
 def test_pool_size_is_bounded_by_unique_needed_histories(
-    model_count: int, monkeypatch: pytest.MonkeyPatch,
+    model_count: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    leaderboard = parse_leaderboard({
-        "success": True,
-        "data": [
-            {"name": str(i), "id": str(i), "currentScore": 55}
-            for i in range(model_count + 1)
-        ],
-    })
+    leaderboard = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {"name": str(i), "id": str(i), "currentScore": 55}
+                for i in range(model_count + 1)
+            ],
+        }
+    )
     names = [str(i) for i in range(model_count)]
     watched = names + [names[0], "absent"]
     fetch = Mock(return_value=HistoryData(scores=[50.0, 50.0], discarded_points=0))
@@ -53,16 +56,19 @@ def test_pool_size_is_bounded_by_unique_needed_histories(
 
 @pytest.mark.parametrize("watched", [[], ["absent"], ["no-id"], ["absent", "no-id"]])
 def test_no_needed_ids_skips_pool_and_progress(
-    watched: list[str], monkeypatch: pytest.MonkeyPatch,
+    watched: list[str],
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    leaderboard = parse_leaderboard({
-        "success": True,
-        "data": [
-            {"name": "no-id", "currentScore": 55},
-            {"name": "unwatched", "id": "unused", "currentScore": 55},
-        ],
-    })
+    leaderboard = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {"name": "no-id", "currentScore": 55},
+                {"name": "unwatched", "id": "unused", "currentScore": 55},
+            ],
+        }
+    )
     pool = Mock(side_effect=AssertionError("No histories need a pool"))
     fetch = Mock(side_effect=AssertionError("No histories need HTTP"))
     monkeypatch.setattr("aimeter.cli.ThreadPoolExecutor", pool)
@@ -85,23 +91,25 @@ def test_requests_are_deduplicated_per_run_and_failures_keep_model_context(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    http_responses[API_URL] = json.dumps({
-        "success": True,
-        "data": [
-            {"name": "shared", "id": "1", "currentScore": 40},
-            {"name": "alias", "id": "1", "currentScore": 55},
-            {"name": "healthy", "id": "2", "currentScore": 55},
-            {"name": "no-id", "currentScore": 55},
-            {"name": "unwatched", "id": "3", "currentScore": 55},
-        ],
-    }).encode()
+    http_responses[API_URL] = json.dumps(
+        {
+            "success": True,
+            "data": [
+                {"name": "shared", "id": "1", "currentScore": 40},
+                {"name": "alias", "id": "1", "currentScore": 55},
+                {"name": "healthy", "id": "2", "currentScore": 55},
+                {"name": "no-id", "currentScore": 55},
+                {"name": "unwatched", "id": "3", "currentScore": 55},
+            ],
+        }
+    ).encode()
     shared_url = HISTORY_URL.format(model_id="1")
     healthy_url = HISTORY_URL.format(model_id="2")
     history = b'{"success":true,"data":[{"score":50},{"score":50}]}'
     http_responses[shared_url] = (
-        history if http_status is None else urllib.error.HTTPError(
-            shared_url, http_status, "unavailable", None, None
-        )
+        history
+        if http_status is None
+        else urllib.error.HTTPError(shared_url, http_status, "unavailable", None, None)
     )
     http_responses[healthy_url] = history
     open_response = Mock(wraps=urllib.request.urlopen)
@@ -120,9 +128,13 @@ def test_requests_are_deduplicated_per_run_and_failures_keep_model_context(
         assert all(
             call.kwargs == {"timeout": 10} for call in open_response.call_args_list
         )
-        rows = [line for line in output.out.splitlines() if line.startswith(
-            ("alias:", "healthy:", "shared:", "[WARN] absent:", "no-id:")
-        )]
+        rows = [
+            line
+            for line in output.out.splitlines()
+            if line.startswith(
+                ("alias:", "healthy:", "shared:", "[WARN] absent:", "no-id:")
+            )
+        ]
         row_names = [line.removeprefix("[WARN] ").split(":", 1)[0] for line in rows]
         assert row_names == watched
         assert "healthy:  55 (Δ+5)  | improved" in output.out
@@ -141,16 +153,19 @@ def test_requests_are_deduplicated_per_run_and_failures_keep_model_context(
 
 @pytest.mark.parametrize("verbosity", [0, 1, 2])
 def test_reverse_completion_preserves_report_and_diagnostic_order(
-    verbosity: int, monkeypatch: pytest.MonkeyPatch,
+    verbosity: int,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    leaderboard = parse_leaderboard({
-        "success": True,
-        "data": [
-            {"name": name, "id": name, "currentScore": 55}
-            for name in ("first", "second", "third")
-        ],
-    })
+    leaderboard = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {"name": name, "id": name, "currentScore": 55}
+                for name in ("first", "second", "third")
+            ],
+        }
+    )
     completed: list[str] = []
 
     class ReadyFuture(Future[HistoryOutcome]):
@@ -203,15 +218,18 @@ def test_reverse_completion_preserves_report_and_diagnostic_order(
 
 
 def test_two_history_reads_can_be_in_flight_together(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    leaderboard = parse_leaderboard({
-        "success": True,
-        "data": [
-            {"name": name, "id": name, "currentScore": 55}
-            for name in ("first", "second")
-        ],
-    })
+    leaderboard = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {"name": name, "id": name, "currentScore": 55}
+                for name in ("first", "second")
+            ],
+        }
+    )
     started = {name: Event() for name in ("first", "second")}
 
     def fetch(model_id: str) -> HistoryData:
@@ -231,15 +249,19 @@ def test_two_history_reads_can_be_in_flight_together(
 @pytest.mark.parametrize("phase", ["submit", "result"])
 @pytest.mark.parametrize("error_type", [KeyboardInterrupt, RuntimeError])
 def test_interruption_or_unexpected_error_requests_cancellation_of_queued_work(
-    phase: str, error_type: type[BaseException], monkeypatch: pytest.MonkeyPatch,
+    phase: str,
+    error_type: type[BaseException],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    leaderboard = parse_leaderboard({
-        "success": True,
-        "data": [
-            {"name": name, "id": name, "currentScore": 55}
-            for name in ("first", "second", "third")
-        ],
-    })
+    leaderboard = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {"name": name, "id": name, "currentScore": 55}
+                for name in ("first", "second", "third")
+            ],
+        }
+    )
     first: Future[HistoryOutcome] = Future()
     pending: Future[HistoryOutcome] = Future()
     executor = Mock(spec=ThreadPoolExecutor)
@@ -262,7 +284,9 @@ def test_interruption_or_unexpected_error_requests_cancellation_of_queued_work(
 @pytest.mark.parametrize("stderr_tty", [False, True])
 @pytest.mark.parametrize("verbosity", [0, 1, 2])
 def test_progress_is_flushed_before_fetching_only_to_interactive_stderr(
-    stdout_tty: bool, stderr_tty: bool, verbosity: int,
+    stdout_tty: bool,
+    stderr_tty: bool,
+    verbosity: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stdout, stderr = StringIO(), StringIO()
@@ -273,10 +297,12 @@ def test_progress_is_flushed_before_fetching_only_to_interactive_stderr(
     monkeypatch.setattr(sys, "stdout", stdout)
     monkeypatch.setattr(sys, "stderr", stderr)
     progress = "[INFO] Fetching model histories…\n" if stderr_tty else ""
-    leaderboard = parse_leaderboard({
-        "success": True,
-        "data": [{"name": "healthy", "id": "1", "currentScore": 55}],
-    })
+    leaderboard = parse_leaderboard(
+        {
+            "success": True,
+            "data": [{"name": "healthy", "id": "1", "currentScore": 55}],
+        }
+    )
 
     def fetch(_model_id: str) -> HistoryData:
         assert stderr.getvalue() == progress

@@ -213,8 +213,10 @@ def analyze_model(
             confidence_upper=confidence_upper,
         )
 
-    delta: float | None = current_score - period_avg
-    threshold: float | None = compute_threshold(standard_error)
+    delta: float | None
+    threshold: float | None
+    delta = current_score - period_avg
+    threshold = compute_threshold(standard_error)
     analysis_error = None
     if not all(
         math.isfinite(value)

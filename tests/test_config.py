@@ -18,7 +18,9 @@ def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return home
 
 
-def write_config(path: Path, content: str = 'watched_models = ["custom-model"]') -> Path:
+def write_config(
+    path: Path, content: str = 'watched_models = ["custom-model"]'
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
@@ -53,7 +55,9 @@ def test_xdg_directory_replaces_home_config_location(
     xdg_dir = tmp_path / "custom config"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_dir))
     if xdg_exists:
-        write_config(xdg_dir / "aimeter" / "config.toml", 'watched_models = ["xdg-model"]')
+        write_config(
+            xdg_dir / "aimeter" / "config.toml", 'watched_models = ["xdg-model"]'
+        )
 
     assert load_watched_models() == (["xdg-model"] if xdg_exists else WATCHED_MODELS)
 
@@ -158,7 +162,9 @@ def test_cli_config_error_exits_before_running(
         )
         args = ["aimeter"]
     monkeypatch.setattr("sys.argv", args)
-    monkeypatch.setattr("aimeter.cli.run", lambda **kwargs: pytest.fail("run was called"))
+    monkeypatch.setattr(
+        "aimeter.cli.run", lambda **kwargs: pytest.fail("run was called")
+    )
 
     with pytest.raises(SystemExit) as exc:
         main()

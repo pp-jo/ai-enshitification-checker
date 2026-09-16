@@ -42,11 +42,31 @@ To update, run:
 uv tool upgrade aimeter
 ```
 
-### Tests
+### Local development checks
 
 ```bash
-uv run pytest
+uv sync --locked --dev
+uv run --locked pytest
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked mypy src/aimeter
 ```
+
+Ruff checks source and tests for common coding mistakes and import order, and
+formats them with an 88-character line-length target. To apply safe lint fixes and
+formatting locally:
+
+```bash
+uv run --locked ruff check --fix .
+uv run --locked ruff format .
+```
+
+Mypy checks `src/aimeter` for Python 3.11 compatibility with `strict = false`.
+It checks function bodies even without annotations, reports incompatible types
+and unsafe use of `None`, and warns about returning `Any` from typed functions or
+unused `type: ignore` comments. Full annotations are not required; tests are not
+included in the Mypy check. These checks complement runtime validation and tests
+for invalid API data, NaN, and infinity.
 
 ### Output and diagnostics
 
