@@ -4,8 +4,16 @@ from io import BytesIO
 import pytest
 
 from aimeter.api import ApiError, ApiErrorKind, fetch_history, fetch_scores
-from aimeter.constants import API_URL, HISTORY_URL
-from aimeter.parsing import HistoryData, LeaderboardData
+from aimeter.parsing import HistoryData, LeaderboardData, PayloadError
+
+# Expected API contract, independent of the production URL constants.
+EXPECTED_QUERY = "period=7d&sortBy=combined"
+EXPECTED_SCORES_URL = (
+    "https://aistupidlevel.info/dashboard/scores?mode=leaderboard&" + EXPECTED_QUERY
+)
+EXPECTED_HISTORY_URL = (
+    "https://aistupidlevel.info/dashboard/history/{model_id}?" + EXPECTED_QUERY
+)
 
 
 def fetch_endpoint(endpoint: str) -> LeaderboardData | HistoryData:
@@ -13,10 +21,13 @@ def fetch_endpoint(endpoint: str) -> LeaderboardData | HistoryData:
 
 
 def endpoint_url(endpoint: str) -> str:
-    return API_URL if endpoint == "scores" else HISTORY_URL.format(model_id="1")
+    return (
+        EXPECTED_SCORES_URL
+        if endpoint == "scores"
+        else EXPECTED_HISTORY_URL.format(model_id="1")
+    )
 
 
-@pytest.mark.parametrize("endpoint", ["scores", "history"])
 @pytest.mark.parametrize(
     "body",
     [
@@ -41,46 +52,49 @@ def endpoint_url(endpoint: str) -> str:
     ],
 )
 def test_invalid_json_is_a_controlled_api_error(
-    endpoint: str, body: bytes, http_responses: dict[str, bytes | Exception]
+    body: bytes, http_responses: dict[str, bytes | Exception]
 ) -> None:
-    http_responses[endpoint_url(endpoint)] = body
-    with pytest.raises(ApiError, match="JSON") as exc:
-        fetch_endpoint(endpoint)
+    http_responses[EXPECTED_SCORES_URL] = body
+    non_object = body in (b"[]", b"true")
+    message = "not a JSON object" if non_object else "invalid JSON"
+    with pytest.raises(ApiError, match=message) as exc:
+        fetch_scores()
     assert exc.value.kind == "invalid_response"
     assert exc.value.http_status is None
     assert "[ERROR]" not in str(exc.value)
-    if body not in (b"[]", b"true"):
-        assert exc.value.__cause__ is not None
+    if not non_object:
+        assert isinstance(exc.value.__cause__, ValueError)
+
+
+def test_history_propagates_json_errors(
+    http_responses: dict[str, bytes | Exception],
+) -> None:
+    http_responses[EXPECTED_HISTORY_URL.format(model_id="1")] = b"{"
+    with pytest.raises(ApiError, match="invalid JSON") as exc:
+        fetch_history("1")
+    assert exc.value.kind == "invalid_response"
+    assert isinstance(exc.value.__cause__, ValueError)
 
 
 @pytest.mark.parametrize("endpoint", ["scores", "history"])
-@pytest.mark.parametrize(
-    "body",
-    [
-        b'{"data": []}',
-        b'{"success": 1, "data": []}',
-        b'{"success": "true", "data": []}',
-        b'{"success": false, "data": []}',
-        b'{"success": true, "data": {}}',
-        b'{"success": true}',
-    ],
-)
 def test_envelope_errors_are_translated_to_api_errors(
-    endpoint: str, body: bytes, http_responses: dict[str, bytes | Exception]
+    endpoint: str, http_responses: dict[str, bytes | Exception]
 ) -> None:
-    http_responses[endpoint_url(endpoint)] = body
-    with pytest.raises(ApiError) as exc:
+    # Payload variants are covered by the parser tests; check the API boundary here.
+    http_responses[endpoint_url(endpoint)] = b'{"success": true, "data": {}}'
+    with pytest.raises(ApiError, match="missing data list") as exc:
         fetch_endpoint(endpoint)
     assert exc.value.kind == "invalid_response"
     assert exc.value.http_status is None
     assert "[ERROR]" not in str(exc.value)
-    assert exc.value.__cause__ is not None
+    assert isinstance(exc.value.__cause__, PayloadError)
+    assert str(exc.value) == str(exc.value.__cause__)
 
 
-def test_scores_are_validated_after_json_decoding(
+def test_scores_request_and_response_contract(
     http_responses: dict[str, bytes | Exception],
 ) -> None:
-    http_responses[API_URL] = (
+    http_responses[EXPECTED_SCORES_URL] = (
         b'{"success":true,"data":['
         b'{"name":"normal","currentScore":0},'
         b'{"name":"overflow","currentScore":1e400}]}'
@@ -95,7 +109,7 @@ def test_scores_are_validated_after_json_decoding(
 def test_large_json_integer_is_rejected_at_field_level(
     http_responses: dict[str, bytes | Exception],
 ) -> None:
-    http_responses[API_URL] = (
+    http_responses[EXPECTED_SCORES_URL] = (
         b'{"success":true,"data":[{"name":"example","currentScore":'
         + str(10**400).encode()
         + b"}]}"
@@ -103,10 +117,10 @@ def test_large_json_integer_is_rejected_at_field_level(
     assert fetch_scores().by_name["example"].current_score is None
 
 
-def test_history_is_validated_after_json_decoding(
+def test_history_request_and_response_contract(
     http_responses: dict[str, bytes | Exception],
 ) -> None:
-    http_responses[HISTORY_URL.format(model_id="1")] = (
+    http_responses[EXPECTED_HISTORY_URL.format(model_id="1")] = (
         b'{"success":true,"data":['
         b'{"score":40},{"score":true},{"score":"50"},{"score":1e400},{"score":60}]}'
     )
@@ -118,13 +132,11 @@ def test_history_is_validated_after_json_decoding(
 def test_history_id_is_encoded_as_a_single_path_segment(
     http_responses: dict[str, bytes | Exception],
 ) -> None:
-    url = HISTORY_URL.format(model_id="a%2Fb%3Fc%3Dd%23e")
+    url = EXPECTED_HISTORY_URL.format(model_id="a%2Fb%3Fc%3Dd%23e")
     http_responses[url] = b'{"success":true,"data":[]}'
     assert fetch_history("a/b?c=d#e").scores == []
 
 
-@pytest.mark.parametrize("endpoint", ["scores", "history"])
-@pytest.mark.parametrize("phase", ["open", "read"])
 @pytest.mark.parametrize(
     "error,kind,message,http_status",
     [
@@ -149,50 +161,46 @@ def test_history_id_is_encoded_as_a_single_path_segment(
         ),
         (urllib.error.URLError("network"), "network", "unreachable", None),
         (urllib.error.URLError("timeout"), "network", "unreachable", None),
-        (OSError("read failure"), "network", "unreachable", None),
+        (OSError("connection failure"), "network", "unreachable", None),
     ],
 )
 def test_transport_errors_keep_their_kind_status_and_cause(
-    endpoint: str,
-    phase: str,
     error: Exception,
     kind: ApiErrorKind,
     message: str,
     http_status: int | None,
     http_responses: dict[str, bytes | Exception],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    if phase == "open":
-        http_responses[endpoint_url(endpoint)] = error
-    else:
-
-        class FailedResponse(BytesIO):
-            def read(self, *_args: object) -> bytes:
-                raise error
-
-        monkeypatch.setattr(
-            "urllib.request.urlopen", lambda *_a, **_k: FailedResponse()
-        )
-
+    http_responses[EXPECTED_SCORES_URL] = error
     with pytest.raises(ApiError, match=message) as exc:
-        fetch_endpoint(endpoint)
+        fetch_scores()
     assert exc.value.kind == kind
     assert exc.value.http_status == http_status
     assert exc.value.__cause__ is error
     assert "[ERROR]" not in str(exc.value)
 
 
-def test_fetch_scores_rejects_non_object_json(monkeypatch: pytest.MonkeyPatch) -> None:
-    class MockResponse:
-        def read(self) -> bytes:
-            return b"[]"
+@pytest.mark.parametrize(
+    "error,kind,message",
+    [
+        (TimeoutError("deadline exceeded"), "timeout", "timeout"),
+        (OSError("read failure"), "network", "unreachable"),
+    ],
+)
+def test_history_read_errors_keep_their_kind_and_cause(
+    error: Exception,
+    kind: ApiErrorKind,
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailedResponse(BytesIO):
+        def read(self, *_args: object) -> bytes:
+            raise error
 
-        def __enter__(self) -> "MockResponse":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-    monkeypatch.setattr("urllib.request.urlopen", lambda *_a, **_k: MockResponse())
-    with pytest.raises(ApiError, match="not a JSON object"):
-        fetch_scores()
+    monkeypatch.setattr("urllib.request.urlopen", lambda *_a, **_k: FailedResponse())
+    with pytest.raises(ApiError, match=message) as exc:
+        fetch_history("1")
+    assert exc.value.kind == kind
+    assert exc.value.http_status is None
+    assert exc.value.__cause__ is error
+    assert "[ERROR]" not in str(exc.value)

@@ -61,45 +61,12 @@ def test_bad_fields_do_not_crash_or_hide_healthy_models(
     assert run(["bad", "good"], verbosity=verbosity) == 0
     output = capsys.readouterr()
     bad_line = next(line for line in output.out.splitlines() if line.startswith("bad:"))
-    assert ("no data" in bad_line) == no_assessment
-    assert "good:  55 (Δ+5)" in output.out
-    assert "improved" in output.out
+    expected_label = "no data" if no_assessment else "improved"
+    assert f"| {expected_label}  |" in bad_line
+    assert "good:  55 (Δ+5)  | improved  |" in output.out
     assert " [!!]" not in bad_line
     assert "stale" not in bad_line
     assert output.err.count(f"[WARN] bad: invalid {field}; treated as missing") == 1
-    assert "[WARN]" not in output.out
-
-
-@pytest.mark.parametrize("verbosity", [0, 1, 2])
-@pytest.mark.parametrize(
-    "body,has_warning",
-    [
-        (b'{"success":true,"data":[]}', False),
-        (b'{"success":true,"data":[{"score":true},{"score":"50"}]}', True),
-        (b'{"success":true,"data":{}}', True),
-        (b'{"success":false,"data":[]}', True),
-        (b'{"success":true,"data":[{"score":NaN}]}', True),
-        (b'{"success":true,"data":[{"score":1e308},{"score":-1e308}]}', True),
-    ],
-)
-def test_unusable_history_preserves_current_score_and_other_models(
-    body: bytes,
-    has_warning: bool,
-    verbosity: int,
-    http_responses: dict[str, bytes | Exception],
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    set_responses(
-        http_responses,
-        {"name": "bad", "id": "1", "currentScore": 55},
-        body,
-    )
-    assert run(["bad", "good"], verbosity=verbosity) == 0
-    output = capsys.readouterr()
-    assert "bad:  55 (Δ—)  | no data" in output.out
-    assert "good:  55 (Δ+5)" in output.out
-    assert "1 no data" in output.out
-    assert ("[WARN] bad:" in output.err) == has_warning
     assert "[WARN]" not in output.out
 
 
@@ -144,35 +111,6 @@ def test_nonstandard_json_constants_fail_cleanly_in_cli(
     output = capsys.readouterr()
     assert output.err == "[ERROR] API returned invalid JSON\n"
     assert output.out == ""
-
-
-def test_numeric_history_error_is_retained_without_printing(
-    http_responses: dict[str, bytes | Exception], capsys: pytest.CaptureFixture[str]
-) -> None:
-    http_responses[HISTORY_URL.format(model_id="1")] = (
-        b'{"success":true,"data":[{"score":1e308},{"score":-1e308},{"score":true}]}'
-    )
-    outcome = load_model_history("1")
-    assert outcome.stats is None
-    assert outcome.discarded_points == 1
-    assert outcome.status == "numeric_error"
-    assert outcome.detail is not None
-    assert "statistics" in outcome.detail
-    output = capsys.readouterr()
-    assert output.out == output.err == ""
-
-
-def test_history_decode_error_is_retained_without_printing(
-    http_responses: dict[str, bytes | Exception], capsys: pytest.CaptureFixture[str]
-) -> None:
-    http_responses[HISTORY_URL.format(model_id="1")] = b"invalid JSON"
-    outcome = load_model_history("1")
-    assert outcome.stats is None
-    assert outcome.status == "invalid_data"
-    assert outcome.detail is not None
-    assert "JSON" in outcome.detail
-    output = capsys.readouterr()
-    assert output.out == output.err == ""
 
 
 def test_missing_id_does_not_request_history(

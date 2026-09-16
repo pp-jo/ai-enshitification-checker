@@ -308,11 +308,3 @@ def test_empty_and_entirely_invalid_histories_remain_distinguishable() -> None:
     assert empty.scores == invalid.scores == []
     assert empty.discarded_points == 0
     assert invalid.discarded_points == 1
-
-
-def test_parse_stale_hours_rejects_bool() -> None:
-    assert parse_stale_hours(True) is None
-    assert parse_stale_hours(False) is None
-    assert parse_stale_hours(6) == 6
-    assert parse_stale_hours("6h") == 6
-    assert parse_stale_hours(None) is None

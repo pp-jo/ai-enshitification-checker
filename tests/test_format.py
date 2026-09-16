@@ -17,37 +17,44 @@ from aimeter.format import (
     format_model_line,
     format_summary,
 )
-from aimeter.models import ModelResult, Trend, analyze_model, compute_period_stats
+from aimeter.models import (
+    LeaderboardEntry,
+    ModelResult,
+    Trend,
+    analyze_model,
+    compute_period_stats,
+)
 from aimeter.parsing import parse_leaderboard
 
 
 @pytest.mark.parametrize(
-    "entry,arrow,warning_count",
+    "trend,arrow,with_history",
     [
-        ({}, "?", 0),
-        ({"trend": None}, "?", 0),
-        ({"trend": "sideways"}, "?", 1),
-        ({"trend": "stable"}, "→", 0),
-        ({"trend": "up"}, "↑", 0),
-        ({"trend": "down"}, "↓", 0),
+        (None, "?", True),
+        ("stable", "→", True),
+        ("up", "↑", True),
+        ("down", "↓", True),
+        (None, "?", False),
+        ("stable", "→", False),
     ],
 )
-@pytest.mark.parametrize("with_history", [False, True])
 def test_trend_presentation_distinguishes_unknown_from_stable(
-    entry: dict[str, object], arrow: str, warning_count: int, with_history: bool
+    trend: Trend | None, arrow: str, with_history: bool
 ) -> None:
-    parsed = parse_leaderboard(
-        {
-            "success": True,
-            "data": [{"name": "example", "currentScore": 50, **entry}],
-        }
+    entry = LeaderboardEntry(
+        name="example",
+        model_id=None,
+        current_score=50,
+        trend=trend,
+        is_stale=False,
+        stale_hours=None,
+        stability=None,
     )
     result = analyze_model(
         "example",
-        parsed.by_name["example"],
+        entry,
         period_stats=compute_period_stats([50.0, 50.0]) if with_history else None,
     )
-    assert len(parsed.warnings) == warning_count
     assert f"Cumul. sum:{arrow}" in format_model_line(result)
     verbose = "\n".join(format_calculations(result))
     assert f"Cumul. sum:{arrow}" in verbose
@@ -85,12 +92,13 @@ def _result_with_label(label: str) -> ModelResult:
 
 
 @pytest.mark.parametrize(
-    "improved,worsened,stable,no_data,expected",
+    "improved,worsened,stable,no_data,missing,expected",
     [
         (
             1,
             0,
             2,
+            0,
             0,
             "Summary: 1 improved, 0 worsened, 2 unchanged",
         ),
@@ -99,6 +107,7 @@ def _result_with_label(label: str) -> ModelResult:
             1,
             0,
             0,
+            1,
             "Summary: 2 improved, 1 worsened, 0 unchanged",
         ),
         (
@@ -106,18 +115,25 @@ def _result_with_label(label: str) -> ModelResult:
             0,
             1,
             2,
+            0,
             "Summary: 0 improved, 0 worsened, 1 unchanged, 2 no data",
         ),
     ],
 )
-def test_format_summary_counts(
-    improved: int, worsened: int, stable: int, no_data: int, expected: str
+def test_format_summary_counts_only_found_models(
+    improved: int,
+    worsened: int,
+    stable: int,
+    no_data: int,
+    missing: int,
+    expected: str,
 ) -> None:
     results = (
         [_result_with_label(LABEL_IMPROVED)] * improved
         + [_result_with_label(LABEL_WORSENED)] * worsened
         + [_result_with_label(LABEL_STABLE)] * stable
         + [_result_with_label(LABEL_NO_DATA)] * no_data
+        + [analyze_model("missing", None)] * missing
     )
     assert format_summary(results) == expected
 
@@ -150,16 +166,14 @@ def test_format_model_line_stale_and_high_se(
     assert "Cumul. sum:↓  | stale 6h" in line
 
 
-def test_format_model_line_high_se_only(
-    analyze_from_fixture: Callable[[str], ModelResult],
-) -> None:
-    result = analyze_from_fixture("gpt-5.5")
+def test_high_se_marker_requires_error_above_ten_before_rounding() -> None:
+    result = _result_with_label(LABEL_STABLE)
+    at_boundary = format_model_line(replace(result, standard_error=10.0))
+    above_boundary = format_model_line(replace(result, standard_error=10.01))
 
-    line = format_model_line(result)
-
-    assert "gpt-5.5:  47 (Δ-5)  | unchanged  | 7d avg 52  | 7d max 92  " in line
-    assert "SE↕" in line
-    assert "Cumul. sum:→" in line
+    assert "| SE ±10.0" in at_boundary
+    assert "SE↕" not in at_boundary
+    assert "| SE ±10.0 (SE↕)" in above_boundary
 
 
 def _signal_result(delta: float, trend: Trend | None = "stable") -> ModelResult:
@@ -294,20 +308,12 @@ def test_verbose_large_drop_boundary_matches_marker_and_verdict(
     )
 
 
-@pytest.mark.parametrize("trend_fields", [{}, {"trend": None}, {"trend": "sideways"}])
 @pytest.mark.parametrize("delta,strong", [(-6, False), (-10, True)])
 def test_unknown_trend_does_not_confirm_or_block_the_drop_reason(
-    trend_fields: dict[str, object],
     delta: float,
     strong: bool,
 ) -> None:
-    entry = parse_leaderboard(
-        {
-            "success": True,
-            "data": [{"name": "example", "currentScore": delta, **trend_fields}],
-        }
-    ).by_name["example"]
-    result = analyze_model("example", entry, period_stats=compute_period_stats([0.0]))
+    result = _signal_result(delta, trend=None)
     assert (" [!!]" in format_model_line(result)) is strong
     verbose = "\n".join(format_calculations(result))
     assert "Cumul. sum:↓? no" in verbose

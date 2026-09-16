@@ -32,7 +32,7 @@ def report_responses(
 
 @pytest.mark.parametrize("verbosity", [0, 1, 2])
 @pytest.mark.parametrize(
-    "response,status,cause,discarded",
+    "response,status,expected_detail,discarded",
     [
         pytest.param(
             urllib.error.HTTPError("url", 503, "unavailable", None, None),
@@ -44,30 +44,56 @@ def report_responses(
         pytest.param(
             TimeoutError("deadline exceeded"),
             "request_error",
-            "timeout",
+            "failed to fetch history (API request timeout)",
             0,
             id="timeout",
         ),
         pytest.param(
             urllib.error.URLError(TimeoutError("deadline exceeded")),
             "request_error",
-            "timeout",
+            "failed to fetch history (API request timeout)",
             0,
             id="wrapped-timeout",
         ),
         pytest.param(
             urllib.error.URLError("offline"),
             "request_error",
-            "unreachable",
+            "failed to fetch history (API unreachable)",
             0,
             id="network",
         ),
-        pytest.param(b"{", "invalid_data", "JSON", 0, id="json"),
-        pytest.param(b"\xff", "invalid_data", "JSON", 0, id="encoding"),
+        pytest.param(
+            b"{",
+            "invalid_data",
+            "invalid history data (API returned invalid JSON)",
+            0,
+            id="json",
+        ),
+        pytest.param(
+            b'{"success":true,"data":[{"score":NaN}]}',
+            "invalid_data",
+            "invalid history data (API returned invalid JSON)",
+            0,
+            id="nonstandard-json",
+        ),
+        pytest.param(
+            b"\xff",
+            "invalid_data",
+            "invalid history data (API returned invalid JSON)",
+            0,
+            id="encoding",
+        ),
+        pytest.param(
+            b'{"success":false,"data":[]}',
+            "invalid_data",
+            "invalid history data (API returned success=false or invalid success value)",
+            0,
+            id="unsuccessful-response",
+        ),
         pytest.param(
             b'{"success":true,"data":{}}',
             "invalid_data",
-            "data list",
+            "invalid history data (API response missing data list)",
             0,
             id="structure",
         ),
@@ -82,7 +108,7 @@ def report_responses(
             b'{"success":true,"data":['
             b'{"score":1e308},{"score":-1e308},{"score":true}]}',
             "numeric_error",
-            "history statistics calculation error",
+            "history statistics calculation error (Cannot compute finite history statistics)",
             1,
             id="numeric",
         ),
@@ -91,7 +117,7 @@ def report_responses(
 def test_history_failure_warns_once_and_preserves_partial_report(
     response: bytes | Exception,
     status: HistoryStatus,
-    cause: str,
+    expected_detail: str,
     discarded: int,
     verbosity: int,
     report_responses: dict[str, bytes | Exception],
@@ -102,23 +128,22 @@ def test_history_failure_warns_once_and_preserves_partial_report(
     assert history.status == status
     assert history.stats is None
     assert history.discarded_points == discarded
-    assert history.detail is not None and cause in history.detail
+    assert history.detail == expected_detail
     assert capsys.readouterr() == ("", "")
 
     assert run(["partial", "healthy"], verbosity=verbosity) == 0
     output = capsys.readouterr()
-    assert "partial:  55 (Δ—)  | no data  | 7d avg —" in output.out
+    assert "partial:  55 (Δ—)  | no data  | 7d avg —  | 7d max —" in output.out
     assert "healthy:  55 (Δ+5)  | improved" in output.out
     assert output.out.index("partial:") < output.out.index("healthy:")
-    assert "Summary: 1 improved, 0 worsened, 0 unchanged, 1 no data" in output.out
-    assert len(output.err.splitlines()) == 1
-    assert output.err.startswith("[WARN] partial: ")
-    assert cause in output.err
-    assert "[ERROR]" not in output.err
+    assert (
+        "Summary: 1 improved, 0 worsened, 0 unchanged, 1 no data"
+        in output.out.splitlines()
+    )
+    assert output.err == f"[WARN] partial: {expected_detail}" + (
+        f"; discarded history points: {discarded}\n" if discarded else "\n"
+    )
     assert "[WARN]" not in output.out
-    assert ("failed to fetch history" in output.err) == (status == "request_error")
-    if discarded:
-        assert f"discarded history points: {discarded}" in output.err
 
 
 @pytest.mark.parametrize("verbosity", [0, 1, 2])
@@ -172,8 +197,13 @@ def test_empty_history_has_its_own_state_and_verbose_explanation(
 
     assert run(["partial", "healthy"], verbosity=verbosity) == 0
     output = capsys.readouterr()
-    assert "partial:  55 (Δ—)  | no data" in output.out
-    assert "healthy:  55 (Δ+5)" in output.out
+    assert "partial:  55 (Δ—)  | no data  | 7d avg —  | 7d max —" in output.out
+    assert "healthy:  55 (Δ+5)  | improved" in output.out
+    assert (
+        "Summary: 1 improved, 0 worsened, 0 unchanged, 1 no data"
+        in output.out.splitlines()
+    )
+    assert "[WARN]" not in output.out
     assert output.err == ("[INFO] partial: history is empty\n" if verbosity else "")
 
 
