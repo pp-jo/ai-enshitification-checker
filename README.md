@@ -1,7 +1,5 @@
 # aimeter
 
-[English](#english) | [Polski](#polski)
-
 ## English
 
 A CLI for checking AI model trends using the public [AI Stupid Meter](https://aistupidlevel.info/) API.
