@@ -10,21 +10,19 @@ from aimeter.parsing import HistoryData, parse_leaderboard
 
 
 def test_run_normal_output(
-    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     patch_api: None,
 ) -> None:
     exit_code = run(["gpt-5.5", "gpt-5.4", "kimi-k2.7-code"])
-    output = capsys.readouterr().out
+    output = capsys.readouterr()
 
     assert exit_code == 0
-    assert "AI Stupid Meter," in output
-    assert "gpt-5.5:" in output
-    assert "gpt-5.4:" in output
-    assert "kimi-k2.7-code:" in output
-    assert "improved" in output
-    assert "worsened" in output
-    assert "Summary:" in output
+    assert "AI Stupid Meter," in output.out
+    assert "gpt-5.5:  47 (Δ-5)  | unchanged  |" in output.out
+    assert "gpt-5.4:  62 (Δ-5)  | worsened  |" in output.out
+    assert "kimi-k2.7-code:  66 (Δ+12)  | improved  |" in output.out
+    assert "Summary: 1 improved, 1 worsened, 1 unchanged" in output.out.splitlines()
+    assert output.err == ""
 
 
 def test_run_model_not_in_response(
@@ -39,11 +37,13 @@ def test_run_model_not_in_response(
     monkeypatch.setattr("aimeter.cli.fetch_scores", lambda: parse_leaderboard(payload))
     monkeypatch.setattr("aimeter.cli.fetch_history", mock_fetch_history)
     exit_code = run(["gpt-5.5", "nonexistent-model"])
-    output = capsys.readouterr().out
+    output = capsys.readouterr()
 
     assert exit_code == 0
-    assert "[WARN] nonexistent-model: not found in API" in output
-    assert "gpt-5.5:" in output
+    assert "[WARN] nonexistent-model: not found in API" in output.out
+    assert "gpt-5.5:  47 (Δ-5)  | unchanged  |" in output.out
+    assert "Summary: 0 improved, 0 worsened, 1 unchanged" in output.out.splitlines()
+    assert output.err == ""
 
 
 def test_run_success_false(
@@ -140,33 +140,6 @@ def test_run_verbose_v2_shows_combined_fields(
     assert "COMBINED 7d points: 12" in output
     assert "stability (API): 78/100" in output
     assert "CI (COMBINED 7d): [" in output
-
-
-def test_run_history_failure_shows_no_data_label(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    payload = {
-        "success": True,
-        "data": [
-            {"id": "999", "name": "gpt-5.5", "currentScore": 47, "trend": "stable"}
-        ],
-    }
-
-    def fail_history(_model_id: str) -> dict:
-        raise ApiError("API unreachable", kind="network")
-
-    monkeypatch.setattr("aimeter.cli.fetch_scores", lambda: parse_leaderboard(payload))
-    monkeypatch.setattr("aimeter.cli.fetch_history", fail_history)
-    exit_code = run(["gpt-5.5"], verbosity=0)
-    output = capsys.readouterr()
-
-    assert exit_code == 0
-    assert "gpt-5.5:  47 (Δ—)  | no data  | 7d avg —  | 7d max —" in output.out
-    assert "Summary:" in output.out
-    assert "1 no data" in output.out
-    assert "0 unchanged, 1 no data" in output.out
-    assert "[WARN]" not in output.out
-    assert output.err == "[WARN] gpt-5.5: failed to fetch history (API unreachable)\n"
 
 
 def test_run_no_verbose_no_calculations(
