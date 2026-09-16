@@ -12,13 +12,15 @@ from aimeter.constants import API_URL, HISTORY_URL
 def report_responses(
     http_responses: dict[str, bytes | Exception],
 ) -> dict[str, bytes | Exception]:
-    http_responses[API_URL] = json.dumps({
-        "success": True,
-        "data": [
-            {"name": "partial", "id": "1", "currentScore": 55, "trend": "stable"},
-            {"name": "healthy", "id": "2", "currentScore": 55, "trend": "stable"},
-        ],
-    }).encode()
+    http_responses[API_URL] = json.dumps(
+        {
+            "success": True,
+            "data": [
+                {"name": "partial", "id": "1", "currentScore": 55, "trend": "stable"},
+                {"name": "healthy", "id": "2", "currentScore": 55, "trend": "stable"},
+            ],
+        }
+    ).encode()
     http_responses[HISTORY_URL.format(model_id="1")] = (
         b'{"success":true,"data":[{"score":40},{"score":60}]}'
     )
@@ -34,35 +36,55 @@ def report_responses(
     [
         pytest.param(
             urllib.error.HTTPError("url", 503, "unavailable", None, None),
-            "request_error", "failed to fetch history (HTTP 503)", 0, id="http-503",
+            "request_error",
+            "failed to fetch history (HTTP 503)",
+            0,
+            id="http-503",
         ),
         pytest.param(
             TimeoutError("deadline exceeded"),
-            "request_error", "timeout", 0, id="timeout",
+            "request_error",
+            "timeout",
+            0,
+            id="timeout",
         ),
         pytest.param(
             urllib.error.URLError(TimeoutError("deadline exceeded")),
-            "request_error", "timeout", 0, id="wrapped-timeout",
+            "request_error",
+            "timeout",
+            0,
+            id="wrapped-timeout",
         ),
         pytest.param(
             urllib.error.URLError("offline"),
-            "request_error", "unreachable", 0, id="network",
+            "request_error",
+            "unreachable",
+            0,
+            id="network",
         ),
         pytest.param(b"{", "invalid_data", "JSON", 0, id="json"),
         pytest.param(b"\xff", "invalid_data", "JSON", 0, id="encoding"),
         pytest.param(
             b'{"success":true,"data":{}}',
-            "invalid_data", "data list", 0, id="structure",
+            "invalid_data",
+            "data list",
+            0,
+            id="structure",
         ),
         pytest.param(
             b'{"success":true,"data":[{"score":true},{"score":"50"}]}',
-            "invalid_data", "history contains no valid points", 2,
+            "invalid_data",
+            "history contains no valid points",
+            2,
             id="all-points-invalid",
         ),
         pytest.param(
             b'{"success":true,"data":['
             b'{"score":1e308},{"score":-1e308},{"score":true}]}',
-            "numeric_error", "history statistics calculation error", 1, id="numeric",
+            "numeric_error",
+            "history statistics calculation error",
+            1,
+            id="numeric",
         ),
     ],
 )
@@ -157,17 +179,21 @@ def test_empty_history_has_its_own_state_and_verbose_explanation(
 
 @pytest.mark.parametrize("kind", ["http", "timeout", "network", "invalid_response"])
 def test_history_status_uses_error_kind_instead_of_message(
-    kind: ApiErrorKind, monkeypatch: pytest.MonkeyPatch,
+    kind: ApiErrorKind,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail_history(_model_id: str) -> None:
         raise ApiError(
-            "same detail for every failure", kind=kind,
+            "same detail for every failure",
+            kind=kind,
             http_status=503 if kind == "http" else None,
         )
 
     monkeypatch.setattr("aimeter.cli.fetch_history", fail_history)
     history = load_model_history("1")
-    assert history.status == ("invalid_data" if kind == "invalid_response" else "request_error")
+    assert history.status == (
+        "invalid_data" if kind == "invalid_response" else "request_error"
+    )
     if kind == "http":
         assert history.detail == "failed to fetch history (HTTP 503)"
 
@@ -188,7 +214,9 @@ def test_analysis_overflow_has_a_warning_and_preserves_history_statistics(
     )
     assert run(["partial", "healthy"], verbosity=verbosity) == 0
     output = capsys.readouterr()
-    partial_line = next(line for line in output.out.splitlines() if line.startswith("partial:"))
+    partial_line = next(
+        line for line in output.out.splitlines() if line.startswith("partial:")
+    )
     assert "(Δ—)  | no data" in partial_line
     assert "7d avg —" not in partial_line
     assert "7d max —" not in partial_line
@@ -241,7 +269,10 @@ def test_parser_and_discard_warnings_keep_context_and_are_not_repeated(
         (urllib.error.URLError("offline"), "unreachable"),
         (b"{", "JSON"),
         (b'{"success":true,"data":{}}', "data list"),
-        (b'{"success":true,"data":[null,{"name":[]}]}', "no entries with valid model names"),
+        (
+            b'{"success":true,"data":[null,{"name":[]}]}',
+            "no entries with valid model names",
+        ),
     ],
 )
 def test_leaderboard_failure_only_prints_an_error_to_stderr(

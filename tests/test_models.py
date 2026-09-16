@@ -72,8 +72,11 @@ def test_constant_scores_have_zero_uncertainty(score: float) -> None:
 @pytest.mark.parametrize(
     "scores",
     [
-        [float("nan")], [float("inf")], [50.0, float("nan")],
-        [-1e308, 1e308], [0.0, 1.7e308],
+        [float("nan")],
+        [float("inf")],
+        [50.0, float("nan")],
+        [-1e308, 1e308],
+        [0.0, 1.7e308],
     ],
 )
 def test_unsafe_statistics_raise_controlled_error(scores: list[float]) -> None:
@@ -209,9 +212,12 @@ def test_analyze_model_not_found() -> None:
         (math.nextafter(5.0, math.inf), LABEL_IMPROVED),
     ],
 )
-def test_labels_use_unrounded_delta_at_both_boundaries(delta: float, label: str) -> None:
+def test_labels_use_unrounded_delta_at_both_boundaries(
+    delta: float, label: str
+) -> None:
     result = analyze_model(
-        "example", replace(ENTRY, current_score=delta, trend="down"),
+        "example",
+        replace(ENTRY, current_score=delta, trend="down"),
         period_stats=compute_period_stats([0.0]),
     )
     assert result.delta == delta
@@ -227,9 +233,12 @@ def test_labels_use_unrounded_delta_at_both_boundaries(delta: float, label: str)
         (math.nextafter(-10.0, -math.inf), True),
     ],
 )
-def test_large_drop_uses_unrounded_delta_at_its_boundary(delta: float, strong: bool) -> None:
+def test_large_drop_uses_unrounded_delta_at_its_boundary(
+    delta: float, strong: bool
+) -> None:
     result = analyze_model(
-        "example", replace(ENTRY, current_score=delta),
+        "example",
+        replace(ENTRY, current_score=delta),
         period_stats=compute_period_stats([0.0]),
     )
     assert result.label == LABEL_WORSENED
@@ -255,13 +264,23 @@ def test_large_drop_uses_unrounded_delta_at_its_boundary(delta: float, strong: b
     ],
 )
 def test_strong_signal_retains_applicability_threshold_and_reasons(
-    se: float | None, threshold: float, delta_factor: float, trend: Trend | None,
-    applicable: bool, large_drop: bool, cusum_down: bool, strong: bool,
+    se: float | None,
+    threshold: float,
+    delta_factor: float,
+    trend: Trend | None,
+    applicable: bool,
+    large_drop: bool,
+    cusum_down: bool,
+    strong: bool,
 ) -> None:
     result = analyze_model(
-        "example", replace(ENTRY, current_score=delta_factor * threshold, trend=trend),
+        "example",
+        replace(ENTRY, current_score=delta_factor * threshold, trend=trend),
         period_stats=PeriodStats(
-            period_avg=0, period_max=0, standard_error=se, data_points=2,
+            period_avg=0,
+            period_max=0,
+            standard_error=se,
+            data_points=2,
         ),
     )
     assessment = result.strong_signal_assessment

@@ -46,7 +46,9 @@ def test_run_model_not_in_response(
     assert "gpt-5.5:" in output
 
 
-def test_run_success_false(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_success_false(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     def raise_api_error() -> dict:
         raise ApiError("API returned success=false", kind="invalid_response")
 
@@ -59,7 +61,9 @@ def test_run_success_false(monkeypatch: pytest.MonkeyPatch, capsys: pytest.Captu
     assert output.out == ""
 
 
-def test_run_empty_data(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_empty_data(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setattr(
         "aimeter.cli.fetch_scores",
         lambda: parse_leaderboard({"success": True, "data": []}),
@@ -116,14 +120,16 @@ def test_run_verbose_v2_shows_combined_fields(
 ) -> None:
     payload = {
         "success": True,
-        "data": [{
-            "id": "256",
-            "name": "gpt-5.5",
-            "currentScore": 47,
-            "trend": "stable",
-            "isStale": False,
-            "stability": 78,
-        }],
+        "data": [
+            {
+                "id": "256",
+                "name": "gpt-5.5",
+                "currentScore": 47,
+                "trend": "stable",
+                "isStale": False,
+                "stability": 78,
+            }
+        ],
     }
     monkeypatch.setattr("aimeter.cli.fetch_scores", lambda: parse_leaderboard(payload))
     monkeypatch.setattr("aimeter.cli.fetch_history", mock_fetch_history)
@@ -141,7 +147,9 @@ def test_run_history_failure_shows_no_data_label(
 ) -> None:
     payload = {
         "success": True,
-        "data": [{"id": "999", "name": "gpt-5.5", "currentScore": 47, "trend": "stable"}],
+        "data": [
+            {"id": "999", "name": "gpt-5.5", "currentScore": 47, "trend": "stable"}
+        ],
     }
 
     def fail_history(_model_id: str) -> dict:

@@ -18,8 +18,23 @@ packages = ["src/aimeter"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/aimeter"]
+strict = false
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["mypy", "pytest>=8.0", "ruff"]
 
 [tool.uv]
 exclude-newer = "2 weeks"

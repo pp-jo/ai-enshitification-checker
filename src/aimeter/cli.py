@@ -26,7 +26,6 @@ from aimeter.models import (
 )
 from aimeter.parsing import LeaderboardData
 
-
 HistoryStatus: TypeAlias = Literal[
     "ok", "empty", "missing_id", "request_error", "invalid_data", "numeric_error"
 ]
@@ -49,9 +48,7 @@ class ModelOutcome:
 def load_model_history(model_id: str | None) -> HistoryOutcome:
     """Classify history availability and retain diagnostics without printing."""
     if model_id is None:
-        return HistoryOutcome(
-            status="missing_id", detail="missing history identifier"
-        )
+        return HistoryOutcome(status="missing_id", detail="missing history identifier")
     try:
         history = fetch_history(model_id)
     except ApiError as exc:
@@ -93,11 +90,13 @@ def collect_model_outcomes(
 ) -> list[ModelOutcome]:
     """Fetch unique histories concurrently, then assess in configuration order."""
     entries = [leaderboard.by_name.get(name) for name in watched_models]
-    model_ids = list(dict.fromkeys(
-        entry.model_id
-        for entry in entries
-        if entry is not None and entry.model_id is not None
-    ))
+    model_ids = list(
+        dict.fromkeys(
+            entry.model_id
+            for entry in entries
+            if entry is not None and entry.model_id is not None
+        )
+    )
     histories: dict[str, HistoryOutcome] = {}
     if model_ids:
         if sys.stderr.isatty():
@@ -123,7 +122,7 @@ def collect_model_outcomes(
             executor.shutdown(wait=True, cancel_futures=True)
 
     outcomes: list[ModelOutcome] = []
-    for name, entry in zip(watched_models, entries):
+    for name, entry in zip(watched_models, entries, strict=True):
         history = (
             histories[entry.model_id]
             if entry is not None and entry.model_id is not None
@@ -142,12 +141,14 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
 
     diagnostics: list[str] = []
     if verbosity >= 1 and result.current_score is None:
-        diagnostics.append(format_diagnostic(
-            "missing current score", name=result.name, level="INFO"
-        ))
+        diagnostics.append(
+            format_diagnostic("missing current score", name=result.name, level="INFO")
+        )
 
     history_warning = history.status in (
-        "request_error", "invalid_data", "numeric_error"
+        "request_error",
+        "invalid_data",
+        "numeric_error",
     )
     detail = history.detail
     if history.discarded_points:
@@ -155,14 +156,19 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
         detail = f"{detail}; {discarded}" if detail else discarded
         history_warning = True
     if detail and (history_warning or verbosity >= 1):
-        diagnostics.append(format_diagnostic(
-            detail, name=result.name, level="WARN" if history_warning else "INFO"
-        ))
+        diagnostics.append(
+            format_diagnostic(
+                detail, name=result.name, level="WARN" if history_warning else "INFO"
+            )
+        )
 
     if result.analysis_error is not None:
-        diagnostics.append(format_diagnostic(
-            f"assessment calculation error ({result.analysis_error})", name=result.name
-        ))
+        diagnostics.append(
+            format_diagnostic(
+                f"assessment calculation error ({result.analysis_error})",
+                name=result.name,
+            )
+        )
     return diagnostics
 
 

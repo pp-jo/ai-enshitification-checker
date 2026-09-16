@@ -193,20 +193,22 @@ def format_verbose_v1(result: ModelResult) -> list[str]:
     lines.append(f"{_INDENT}→ label: {rationale}  →  {result.label}")
 
     if not assessment.applicable:
-        lines.append(
-            f"{_INDENT}→ [!!]: not applicable (label ≠ {LABEL_WORSENED})"
-        )
+        lines.append(f"{_INDENT}→ [!!]: not applicable (label ≠ {LABEL_WORSENED})")
     else:
         mult = f"{STRONG_SIGNAL_MULTIPLIER:.0f}"
         cond_drop = _format_threshold_comparison(
-            delta_abs, assessment.large_drop_threshold,
+            delta_abs,
+            assessment.large_drop_threshold,
             "≥" if assessment.large_drop else "<",
-            value_label="|Δ|", threshold_label=f"{mult}×threshold",
+            value_label="|Δ|",
+            threshold_label=f"{mult}×threshold",
         )
         if assessment.large_drop:
             cond_drop += " ✓"
         cond_cusum = (
-            f"{CUMUL_SUM_LABEL}:↓ ✓" if assessment.cusum_down else f"{CUMUL_SUM_LABEL}:↓? no"
+            f"{CUMUL_SUM_LABEL}:↓ ✓"
+            if assessment.cusum_down
+            else f"{CUMUL_SUM_LABEL}:↓? no"
         )
         verdict = "yes → [!!]" if assessment.is_strong else "no → no [!!]"
         lines.append(f"{_INDENT}→ [!!]: {cond_drop}   {cond_cusum}   →  {verdict}")

@@ -1,6 +1,6 @@
 import os
-from pathlib import Path
 import tomllib
+from pathlib import Path
 
 from aimeter.constants import WATCHED_MODELS
 
@@ -21,9 +21,7 @@ def default_config_path() -> Path:
 def load_watched_models(config_path: str | Path | None = None) -> list[str]:
     """Load the selected file, using built-in models only if no user file exists."""
     path = (
-        default_config_path()
-        if config_path is None
-        else Path(config_path).expanduser()
+        default_config_path() if config_path is None else Path(config_path).expanduser()
     )
     try:
         with path.open("rb") as config_file:
@@ -45,6 +43,6 @@ def load_watched_models(config_path: str | Path | None = None) -> list[str]:
     ):
         raise ConfigError(
             f"Invalid configuration {path}: watched_models must be a list "
-            "of non-empty model names (e.g. watched_models = [\"gpt-5.5\"])."
+            'of non-empty model names (e.g. watched_models = ["gpt-5.5"]).'
         )
     return [name.strip() for name in models]

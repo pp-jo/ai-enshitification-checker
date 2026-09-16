@@ -21,8 +21,16 @@ def test_finite_numbers_are_floats(value: int | float) -> None:
 @pytest.mark.parametrize(
     "value",
     [
-        None, True, False, "47", "", [], {},
-        float("nan"), float("inf"), -float("inf"),
+        None,
+        True,
+        False,
+        "47",
+        "",
+        [],
+        {},
+        float("nan"),
+        float("inf"),
+        -float("inf"),
         pytest.param(10**400, id="integer-too-large-for-float"),
     ],
 )
@@ -33,8 +41,14 @@ def test_invalid_numbers_are_missing(value: object) -> None:
 @pytest.mark.parametrize(
     "value,expected",
     [
-        (0, 0), (6, 6), (6.9, 6), ("6", 6), ("6h", 6),
-        (" 6.5H ", 6), ("0h", 0), ("1e2h", 100),
+        (0, 0),
+        (6, 6),
+        (6.9, 6),
+        ("6", 6),
+        ("6h", 6),
+        (" 6.5H ", 6),
+        ("0h", 0),
+        ("1e2h", 100),
     ],
 )
 def test_stale_hours_accepts_supported_formats(value: object, expected: int) -> None:
@@ -44,9 +58,26 @@ def test_stale_hours_accepts_supported_formats(value: object, expected: int) -> 
 @pytest.mark.parametrize(
     "value",
     [
-        None, True, False, "", "h", "6hh", "six", -1, -0.5, "-6h",
-        "NaN", "Infinity", "-Infinity", "1e400h", "NaNh",
-        float("nan"), float("inf"), -float("inf"), [], {},
+        None,
+        True,
+        False,
+        "",
+        "h",
+        "6hh",
+        "six",
+        -1,
+        -0.5,
+        "-6h",
+        "NaN",
+        "Infinity",
+        "-Infinity",
+        "1e400h",
+        "NaNh",
+        float("nan"),
+        float("inf"),
+        -float("inf"),
+        [],
+        {},
         pytest.param(10**400, id="integer-too-large-for-float"),
     ],
 )
@@ -55,18 +86,22 @@ def test_invalid_stale_hours_are_missing(value: object) -> None:
 
 
 def test_leaderboard_normalizes_fields_and_preserves_zero() -> None:
-    parsed = parse_leaderboard({
-        "success": True,
-        "data": [{
-            "name": " example ",
-            "id": 123,
-            "currentScore": 0,
-            "trend": "stable",
-            "isStale": False,
-            "staleDuration": "0h",
-            "stability": 0,
-        }],
-    })
+    parsed = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {
+                    "name": " example ",
+                    "id": 123,
+                    "currentScore": 0,
+                    "trend": "stable",
+                    "isStale": False,
+                    "staleDuration": "0h",
+                    "stability": 0,
+                }
+            ],
+        }
+    )
     entry = parsed.by_name["example"]
     assert entry.name == "example"
     assert entry.model_id == "123"
@@ -83,9 +118,18 @@ def test_leaderboard_normalizes_fields_and_preserves_zero() -> None:
 def test_optional_fields_can_be_absent_or_null(null_fields: bool) -> None:
     entry: dict[str, object] = {"name": "example"}
     if null_fields:
-        entry.update(dict.fromkeys([
-            "id", "currentScore", "trend", "isStale", "staleDuration", "stability",
-        ]))
+        entry.update(
+            dict.fromkeys(
+                [
+                    "id",
+                    "currentScore",
+                    "trend",
+                    "isStale",
+                    "staleDuration",
+                    "stability",
+                ]
+            )
+        )
     parsed = parse_leaderboard({"success": True, "data": [entry]})
     result = parsed.by_name["example"]
     assert result.current_score is None
@@ -120,9 +164,12 @@ def test_optional_fields_can_be_absent_or_null(null_fields: bool) -> None:
 def test_bad_optional_fields_record_warnings(
     field: str, value: object, attribute: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    parsed = parse_leaderboard({
-        "success": True, "data": [{"name": "example", field: value}],
-    })
+    parsed = parse_leaderboard(
+        {
+            "success": True,
+            "data": [{"name": "example", field: value}],
+        }
+    )
     assert getattr(parsed.by_name["example"], attribute) is None
     assert len(parsed.warnings) == 1
     assert "example" in parsed.warnings[0]
@@ -133,30 +180,38 @@ def test_bad_optional_fields_record_warnings(
 
 @pytest.mark.parametrize("value,expected", [(" 123 ", "123"), ("a/b?c=d", "a/b?c=d")])
 def test_string_ids_are_preserved(value: str, expected: str) -> None:
-    parsed = parse_leaderboard({
-        "success": True, "data": [{"name": "example", "id": value}],
-    })
+    parsed = parse_leaderboard(
+        {
+            "success": True,
+            "data": [{"name": "example", "id": value}],
+        }
+    )
     assert parsed.by_name["example"].model_id == expected
     assert not parsed.warnings
 
 
 @pytest.mark.parametrize("entry", [None, 4, [], {}, {"name": []}, {"name": "  "}])
 def test_invalid_entries_are_skipped_without_losing_valid_models(entry: object) -> None:
-    parsed = parse_leaderboard({
-        "success": True, "data": [entry, {"name": "example", "currentScore": 50}],
-    })
+    parsed = parse_leaderboard(
+        {
+            "success": True,
+            "data": [entry, {"name": "example", "currentScore": 50}],
+        }
+    )
     assert list(parsed.by_name) == ["example"]
     assert len(parsed.warnings) == 1
 
 
 def test_duplicate_names_keep_last_entry_with_warning() -> None:
-    parsed = parse_leaderboard({
-        "success": True,
-        "data": [
-            {"name": "example", "currentScore": 40},
-            {"name": " example ", "currentScore": 60},
-        ],
-    })
+    parsed = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {"name": "example", "currentScore": 40},
+                {"name": " example ", "currentScore": 60},
+            ],
+        }
+    )
     assert parsed.by_name["example"].current_score == 60
     assert len(parsed.warnings) == 1
     assert "example" in parsed.warnings[0]
@@ -173,14 +228,16 @@ def test_duplicate_field_warnings_describe_only_the_selected_entry(
     expected_score: float | None,
     expected_field_warnings: int,
 ) -> None:
-    parsed = parse_leaderboard({
-        "success": True,
-        "data": [
-            {"name": "example", "currentScore": first},
-            {"name": "other", "stability": "invalid"},
-            {"name": "example", "currentScore": last},
-        ],
-    })
+    parsed = parse_leaderboard(
+        {
+            "success": True,
+            "data": [
+                {"name": "example", "currentScore": first},
+                {"name": "other", "stability": "invalid"},
+                {"name": "example", "currentScore": last},
+            ],
+        }
+    )
     assert parsed.by_name["example"].current_score == expected_score
     assert sum("duplicate" in warning for warning in parsed.warnings) == 1
     field_warnings = [
@@ -200,7 +257,10 @@ def test_empty_leaderboard_differs_from_unreadable_entries() -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        None, [], 5, {},
+        None,
+        [],
+        5,
+        {},
         {"data": []},
         {"success": False, "data": []},
         {"success": 1, "data": []},
@@ -218,14 +278,25 @@ def test_both_endpoints_require_valid_envelopes(parser, payload: object) -> None
 
 
 def test_history_filters_points_and_counts_discarded_values() -> None:
-    history = parse_history({
-        "success": True,
-        "data": [
-            {"score": 40}, {"score": True}, {"score": "50"}, {"score": 60},
-            {"score": float("nan")}, {"score": float("inf")},
-            {"score": 10**400}, {"score": None}, {}, 50, [], None,
-        ],
-    })
+    history = parse_history(
+        {
+            "success": True,
+            "data": [
+                {"score": 40},
+                {"score": True},
+                {"score": "50"},
+                {"score": 60},
+                {"score": float("nan")},
+                {"score": float("inf")},
+                {"score": 10**400},
+                {"score": None},
+                {},
+                50,
+                [],
+                None,
+            ],
+        }
+    )
     assert history.scores == [40.0, 60.0]
     assert all(math.isfinite(score) for score in history.scores)
     assert history.discarded_points == 10
