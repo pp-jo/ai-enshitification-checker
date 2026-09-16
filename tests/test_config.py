@@ -4,7 +4,7 @@ import pytest
 
 from aimeter.cli import main
 from aimeter.config import ConfigError, load_watched_models
-from aimeter.constants import WATCHED_MODELS
+from aimeter.constants import DEFAULT_WATCHED_MODELS
 
 
 @pytest.fixture(autouse=True)
@@ -27,7 +27,7 @@ def write_config(
 
 
 def test_missing_user_config_uses_defaults() -> None:
-    assert load_watched_models() == WATCHED_MODELS
+    assert load_watched_models() == DEFAULT_WATCHED_MODELS
 
 
 @pytest.mark.parametrize("xdg_value", [None, "", "relative/config"])
@@ -59,7 +59,9 @@ def test_xdg_directory_replaces_home_config_location(
             xdg_dir / "aimeter" / "config.toml", 'watched_models = ["xdg-model"]'
         )
 
-    assert load_watched_models() == (["xdg-model"] if xdg_exists else WATCHED_MODELS)
+    assert load_watched_models() == (
+        ["xdg-model"] if xdg_exists else DEFAULT_WATCHED_MODELS
+    )
 
 
 @pytest.mark.parametrize("path_style", ["absolute", "relative", "tilde"])
@@ -85,7 +87,7 @@ def test_explicit_config_takes_precedence(
 def test_current_directory_config_is_not_discovered(tmp_path: Path) -> None:
     write_config(tmp_path / "config.toml")
 
-    assert load_watched_models() == WATCHED_MODELS
+    assert load_watched_models() == DEFAULT_WATCHED_MODELS
 
 
 def test_missing_explicit_config_does_not_fall_back(isolated_home: Path) -> None:

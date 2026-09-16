@@ -6,16 +6,16 @@ from typing import Literal, TypeAlias
 
 from aimeter.api import ApiError, fetch_history, fetch_scores
 from aimeter.config import ConfigError, load_watched_models
-from aimeter.constants import HISTORY_MAX_WORKERS, WATCHED_MODELS
+from aimeter.constants import DEFAULT_WATCHED_MODELS, HISTORY_MAX_WORKERS
 from aimeter.format import (
+    format_calculations,
     format_diagnostic,
+    format_extra_stats,
     format_header,
     format_legend,
     format_missing_model,
     format_model_line,
     format_summary,
-    format_verbose_v1,
-    format_verbose_v2,
 )
 from aimeter.models import (
     AnalysisError,
@@ -173,7 +173,7 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
 
 
 def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
-    models = WATCHED_MODELS.copy() if watched_models is None else watched_models
+    models = DEFAULT_WATCHED_MODELS.copy() if watched_models is None else watched_models
     lines: list[str] = [format_header(), ""]
     outcomes: list[ModelOutcome] = []
     diagnostics: list[str] = []
@@ -200,9 +200,9 @@ def run(watched_models: list[str] | None = None, verbosity: int = 0) -> int:
         else:
             lines.append(format_model_line(result))
             if verbosity >= 1:
-                lines.extend(format_verbose_v1(result))
+                lines.extend(format_calculations(result))
             if verbosity >= 2:
-                lines.extend(format_verbose_v2(result))
+                lines.extend(format_extra_stats(result))
 
     lines.append("")
     lines.append(format_summary([outcome.result for outcome in outcomes]))

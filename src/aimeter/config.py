@@ -2,7 +2,7 @@ import os
 import tomllib
 from pathlib import Path
 
-from aimeter.constants import WATCHED_MODELS
+from aimeter.constants import DEFAULT_WATCHED_MODELS
 
 
 class ConfigError(Exception):
@@ -28,7 +28,7 @@ def load_watched_models(config_path: str | Path | None = None) -> list[str]:
             config = tomllib.load(config_file)
     except FileNotFoundError as exc:
         if config_path is None:
-            return WATCHED_MODELS.copy()
+            return DEFAULT_WATCHED_MODELS.copy()
         raise ConfigError(f"Configuration file not found: {path}") from exc
     except OSError as exc:
         raise ConfigError(
