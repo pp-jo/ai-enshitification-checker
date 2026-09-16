@@ -1,5 +1,8 @@
+import http.client
 import json
 import urllib.error
+from io import BytesIO
+from unittest.mock import Mock
 
 import pytest
 
@@ -144,6 +147,54 @@ def test_history_failure_warns_once_and_preserves_partial_report(
         f"; discarded history points: {discarded}\n" if discarded else "\n"
     )
     assert "[WARN]" not in output.out
+
+
+@pytest.mark.parametrize("endpoint", ["scores", "history"])
+def test_interrupted_http_response_is_handled(
+    endpoint: str,
+    report_responses: dict[str, bytes | Exception],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = API_URL if endpoint == "scores" else HISTORY_URL.format(model_id="1")
+    body = report_responses[url]
+    assert isinstance(body, bytes)
+    # Even valid-looking JSON must be rejected when the HTTP body is incomplete.
+    headers = f"HTTP/1.1 200 OK\r\nContent-Length: {len(body) + 10}\r\n\r\n".encode()
+    socket = Mock()
+    socket.makefile.return_value = BytesIO(headers + body)
+    response = http.client.HTTPResponse(socket)
+    response.begin()
+
+    def open_with_interrupted_response(
+        request_url: str, *, timeout: int
+    ) -> http.client.HTTPResponse | BytesIO:
+        if request_url == url:
+            return response
+        response_body = report_responses[request_url]
+        assert isinstance(response_body, bytes)
+        return BytesIO(response_body)
+
+    monkeypatch.setattr("urllib.request.urlopen", open_with_interrupted_response)
+
+    exit_code = run(["partial", "healthy"])
+    output = capsys.readouterr()
+    assert response.closed
+    if endpoint == "scores":
+        assert exit_code == 1
+        assert output.out == ""
+        assert output.err == "[ERROR] API response could not be read\n"
+    else:
+        assert exit_code == 0
+        assert "partial:  55 (Δ—)  | no data  | 7d avg —" in output.out
+        assert "healthy:  55 (Δ+5)  | improved" in output.out
+        assert (
+            "Summary: 1 improved, 0 worsened, 0 unchanged, 1 no data"
+            in output.out.splitlines()
+        )
+        assert output.err == (
+            "[WARN] partial: failed to fetch history (API response could not be read)\n"
+        )
 
 
 @pytest.mark.parametrize("verbosity", [0, 1, 2])

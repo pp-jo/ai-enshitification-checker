@@ -1,3 +1,4 @@
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -45,6 +46,8 @@ def _fetch_json(url: str) -> object:
         raise ApiError("API unreachable", kind="network") from exc
     except OSError as exc:
         raise ApiError("API unreachable", kind="network") from exc
+    except http.client.HTTPException as exc:
+        raise ApiError("API response could not be read", kind="network") from exc
 
     try:
         payload: object = json.loads(
@@ -59,18 +62,16 @@ def _fetch_json(url: str) -> object:
     return payload
 
 
-def fetch_scores(url: str = API_URL) -> LeaderboardData:
-    payload = _fetch_json(url)
+def fetch_scores() -> LeaderboardData:
+    payload = _fetch_json(API_URL)
     try:
         return parse_leaderboard(payload)
     except PayloadError as exc:
         raise ApiError(str(exc), kind="invalid_response") from exc
 
 
-def fetch_history(model_id: str, url: str | None = None) -> HistoryData:
-    history_url = url or HISTORY_URL.format(
-        model_id=urllib.parse.quote(model_id, safe="")
-    )
+def fetch_history(model_id: str) -> HistoryData:
+    history_url = HISTORY_URL.format(model_id=urllib.parse.quote(model_id, safe=""))
     payload = _fetch_json(history_url)
     try:
         return parse_history(payload)

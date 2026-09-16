@@ -1,3 +1,4 @@
+import http.client
 import urllib.error
 from io import BytesIO
 
@@ -162,6 +163,12 @@ def test_history_id_is_encoded_as_a_single_path_segment(
         (urllib.error.URLError("network"), "network", "unreachable", None),
         (urllib.error.URLError("timeout"), "network", "unreachable", None),
         (OSError("connection failure"), "network", "unreachable", None),
+        (
+            http.client.BadStatusLine("invalid status line"),
+            "network",
+            "response could not be read",
+            None,
+        ),
     ],
 )
 def test_transport_errors_keep_their_kind_status_and_cause(
@@ -185,6 +192,11 @@ def test_transport_errors_keep_their_kind_status_and_cause(
     [
         (TimeoutError("deadline exceeded"), "timeout", "timeout"),
         (OSError("read failure"), "network", "unreachable"),
+        (
+            http.client.IncompleteRead(b"{", 99),
+            "network",
+            "response could not be read",
+        ),
     ],
 )
 def test_history_read_errors_keep_their_kind_and_cause(
