@@ -34,6 +34,10 @@ uv run aimeter
 
 Supports up to 2 verbosity levels (anything beyond `-vv` is treated as `-vv`).
 
+Use `--print-source` to print the absolute path to the active model-list source
+and exit. This is the selected TOML configuration file, or `constants.py` when
+the built-in default model list is being used.
+
 To update, run:
 
 ```bash
@@ -110,6 +114,12 @@ The program selects its configuration in the following order:
 2. The user configuration file: `$XDG_CONFIG_HOME/aimeter/config.toml`, or
    `~/.config/aimeter/config.toml` if the variable is unset, empty, or contains a relative path.
 3. The built-in default list if `--config` is not provided and the user configuration file does not exist.
+
+To see which source is active:
+
+```bash
+aimeter --print-source
+```
 
 #### Configuration file
 

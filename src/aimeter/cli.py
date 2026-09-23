@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 from aimeter.api import ApiError, fetch_history, fetch_scores
-from aimeter.config import ConfigError, load_watched_models
+from aimeter.config import ConfigError, load_config
 from aimeter.constants import DEFAULT_WATCHED_MODELS, HISTORY_MAX_WORKERS
 from aimeter.format import (
     format_calculations,
@@ -223,7 +223,8 @@ def main() -> None:
             "  aimeter -v       — + Δ calculations, threshold, [!!] logic\n"
             "  aimeter -vv      — + COMBINED 7d statistics and stability (API)\n"
             "  aimeter -vvv...  — same as -vv\n"
-            "  aimeter --config ./config.toml — custom model list"
+            "  aimeter --config ./config.toml — custom model list\n"
+            "  aimeter --print-source — path to the active model-list source"
         ),
     )
     parser.add_argument(
@@ -235,6 +236,11 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--print-source",
+        action="store_true",
+        help="Print the path to the active model-list source and exit",
+    )
+    parser.add_argument(
         "-v",
         action="count",
         default=0,
@@ -243,7 +249,15 @@ def main() -> None:
     )
     args = parser.parse_args()
     try:
-        watched_models = load_watched_models(args.config)
+        loaded_config = load_config(args.config)
     except ConfigError as exc:
         parser.error(str(exc))
-    sys.exit(run(watched_models=watched_models, verbosity=args.verbosity))
+    if args.print_source:
+        print(loaded_config.source)
+        sys.exit(0)
+    sys.exit(
+        run(
+            watched_models=loaded_config.watched_models,
+            verbosity=args.verbosity,
+        )
+    )
