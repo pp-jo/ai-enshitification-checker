@@ -19,6 +19,7 @@ def test_help_copy_is_english(
     assert "check AI model trends" in help_text
     assert "Examples:" in help_text
     assert "--config FILE" in help_text
+    assert "--print-source" in help_text
     assert "repeatable" in help_text
     for phrase in (
         "PLIK",

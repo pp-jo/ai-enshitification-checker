@@ -3,7 +3,12 @@ from pathlib import Path
 import pytest
 
 from aimeter.cli import main
-from aimeter.config import ConfigError, load_watched_models
+from aimeter.config import (
+    ConfigError,
+    builtin_config_source,
+    load_config,
+    load_watched_models,
+)
 from aimeter.constants import DEFAULT_WATCHED_MODELS
 
 
@@ -28,6 +33,22 @@ def write_config(
 
 def test_missing_user_config_uses_defaults() -> None:
     assert load_watched_models() == DEFAULT_WATCHED_MODELS
+
+
+def test_load_config_reports_builtin_source() -> None:
+    loaded = load_config()
+
+    assert loaded.watched_models == DEFAULT_WATCHED_MODELS
+    assert loaded.source == builtin_config_source()
+
+
+def test_load_config_reports_explicit_source(tmp_path: Path) -> None:
+    path = write_config(tmp_path / "custom.toml")
+
+    loaded = load_config(path)
+
+    assert loaded.watched_models == ["custom-model"]
+    assert loaded.source == path.resolve()
 
 
 @pytest.mark.parametrize("xdg_value", [None, "", "relative/config"])
@@ -176,3 +197,49 @@ def test_cli_config_error_exits_before_running(
     assert output.out == ""
     assert str(path) in output.err
     assert "Traceback" not in output.err
+
+
+@pytest.mark.parametrize("explicit", [True, False])
+def test_cli_print_source(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    explicit: bool,
+) -> None:
+    if explicit:
+        path = write_config(isolated_home / "custom.toml")
+        args = ["aimeter", "--config", str(path), "--print-source"]
+    else:
+        path = write_config(isolated_home / ".config" / "aimeter" / "config.toml")
+        args = ["aimeter", "--print-source"]
+    monkeypatch.setattr("sys.argv", args)
+    monkeypatch.setattr(
+        "aimeter.cli.run", lambda **kwargs: pytest.fail("run was called")
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == 0
+    output = capsys.readouterr()
+    assert output.out == f"{path.resolve()}\n"
+    assert output.err == ""
+
+
+def test_cli_print_source_uses_builtin_file(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["aimeter", "--print-source"])
+    monkeypatch.setattr(
+        "aimeter.cli.run", lambda **kwargs: pytest.fail("run was called")
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == 0
+    output = capsys.readouterr()
+    assert output.out == f"{builtin_config_source()}\n"
+    assert output.err == ""
