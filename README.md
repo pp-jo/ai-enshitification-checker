@@ -34,9 +34,7 @@ uv run aimeter
 
 Supports up to 2 verbosity levels (anything beyond `-vv` is treated as `-vv`).
 
-Use `--print-source` to print the absolute path to the active model-list source
-and exit. This is the selected TOML configuration file, or `constants.py` when
-the built-in default model list is being used.
+Use `--print-source` to print the absolute path to the active model-list source and exit.
 
 To update, run:
 
