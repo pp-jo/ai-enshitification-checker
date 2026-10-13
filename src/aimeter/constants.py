@@ -1,4 +1,5 @@
 SCORING_MODE = "combined"
+COMBINED_SUITES = frozenset({"hourly", "deep", "tooling"})
 
 API_URL = (
     "https://aistupidlevel.info/dashboard/scores"
@@ -28,16 +29,12 @@ SE_HIGH_THRESHOLD = 10.0
 # Built-in default list, used when no user config file exists.
 DEFAULT_WATCHED_MODELS = [
     "gpt-5.6-sol",
-    "gpt-5.6-terra",
     "gpt-5.6-luna",
-    "gpt-5.5",
-    "claude-fable-5",
-    "claude-opus-5",
-    "claude-opus-4-8",
-    "claude-sonnet-4-6",
-    "claude-sonnet-5",
-    # Composer 2.5 is not listed separately; API tracks Kimi K2.x as the base model.
-    "kimi-k2.7-code",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "claude-fable-5-1",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
 ]
 
 LABEL_IMPROVED = "improved"
