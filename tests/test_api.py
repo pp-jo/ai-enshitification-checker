@@ -1,6 +1,7 @@
 import http.client
 import urllib.error
 from io import BytesIO
+from unittest.mock import Mock
 
 import pytest
 
@@ -216,3 +217,28 @@ def test_history_read_errors_keep_their_kind_and_cause(
     assert exc.value.http_status is None
     assert exc.value.__cause__ is error
     assert "[ERROR]" not in str(exc.value)
+
+
+@pytest.mark.parametrize("endpoint", ["scores", "history"])
+def test_deeply_nested_json_is_a_controlled_api_error(
+    endpoint: str,
+    deeply_nested_json: bytes,
+    http_responses: dict[str, bytes | Exception],
+) -> None:
+    http_responses[endpoint_url(endpoint)] = deeply_nested_json
+    with pytest.raises(ApiError, match="invalid JSON") as exc:
+        fetch_endpoint(endpoint)
+    assert exc.value.kind == "invalid_response"
+    assert isinstance(exc.value.__cause__, RecursionError)
+
+
+def test_json_parser_recursion_error_keeps_its_cause(
+    http_responses: dict[str, bytes | Exception], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    http_responses[EXPECTED_SCORES_URL] = b'{"success":true,"data":[]}'
+    error = RecursionError("parser depth exceeded")
+    monkeypatch.setattr("aimeter.api.json.loads", Mock(side_effect=error))
+    with pytest.raises(ApiError) as exc:
+        fetch_scores()
+    assert exc.value.kind == "invalid_response"
+    assert exc.value.__cause__ is error

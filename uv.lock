@@ -12,7 +12,7 @@ exclude-newer-span = "P2W"
 
 [[package]]
 name = "aimeter"
-version = "0.4.1"
+version = "0.4.2"
 source = { editable = "." }
 
 [package.dev-dependencies]

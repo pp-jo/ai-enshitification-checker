@@ -172,6 +172,10 @@ def test_main_uses_selected_models(
     model_name: str,
     patch_api: None,
 ) -> None:
+    # Configuration precedence must not depend on the current public model list.
+    monkeypatch.setattr(
+        "aimeter.config.DEFAULT_WATCHED_MODELS", ["kimi-k2.7-code", "gpt-5.5"]
+    )
     xdg_dir = tmp_path / "xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_dir))
     args = ["aimeter", "-vv"]

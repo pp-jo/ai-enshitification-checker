@@ -1,4 +1,7 @@
+import sys
+from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -243,3 +246,56 @@ def test_cli_print_source_uses_builtin_file(
     output = capsys.readouterr()
     assert output.out == f"{builtin_config_source()}\n"
     assert output.err == ""
+
+
+@pytest.fixture
+def limited_integer_conversion() -> Iterator[None]:
+    previous = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    try:
+        yield
+    finally:
+        sys.set_int_max_str_digits(previous)
+
+
+@pytest.mark.parametrize("failure", ["deep-array", "large-integer"])
+def test_parser_limits_are_controlled_config_and_cli_errors(
+    failure: str,
+    limited_integer_conversion: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    value = "[" * 10000 + '"x"' + "]" * 10000 if failure == "deep-array" else "9" * 5000
+    path = write_config(
+        tmp_path / "limits.toml", f'watched_models = ["x"]\nextra = {value}'
+    )
+    with pytest.raises(ConfigError, match="Invalid TOML") as exc:
+        load_config(path)
+    expected_error = RecursionError if failure == "deep-array" else ValueError
+    assert isinstance(exc.value.__cause__, expected_error)
+    assert str(path) in str(exc.value)
+
+    monkeypatch.setattr("sys.argv", ["aimeter", "--config", str(path)])
+    monkeypatch.setattr(
+        "aimeter.cli.run", lambda **kwargs: pytest.fail("run was called")
+    )
+    with pytest.raises(SystemExit) as exit_exc:
+        main()
+    assert exit_exc.value.code == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "Invalid TOML" in output.err
+    assert str(path) in output.err
+    assert "Traceback" not in output.err
+
+
+def test_toml_parser_recursion_error_keeps_its_cause(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_config(tmp_path / "config.toml")
+    error = RecursionError("parser depth exceeded")
+    monkeypatch.setattr("aimeter.config.tomllib.load", Mock(side_effect=error))
+    with pytest.raises(ConfigError) as exc:
+        load_config(path)
+    assert exc.value.__cause__ is error

@@ -80,6 +80,16 @@ score, an empty history, or a missing history identifier. A valid empty history 
 not a request failure. Available scores and history statistics remain in the report.
 Models absent from the leaderboard keep their existing warning in the stdout report.
 
+When benchmark metadata is available, incomplete COMBINED scores are marked
+`partial: N/3 suites` and trigger a warning even without `-v`. Changes in suite
+composition can affect Δ; the marker describes only the current score and does
+not change the assessment rules.
+
+Model rows show `coverage`, or the suite count for partial scores. Use `-vv` for
+full coverage details and contributing suites with their completeness. Unknown
+suite names are preserved with a warning; invalid metadata is omitted with a
+warning. Missing metadata leaves the report format unchanged.
+
 Exit codes: **0** means the run succeeded, including partial results, an empty
 leaderboard, or an empty watch list; **1** means the leaderboard could not be read or validated;
 **2** means invalid arguments or configuration. Code 0 does not guarantee complete data.

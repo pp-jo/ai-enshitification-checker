@@ -34,6 +34,9 @@ def set_responses(
         ("currentScore", [], True),
         ("stability", "78", False),
         ("stability", True, False),
+        ("coverage", True, False),
+        ("suites", "hourly", False),
+        ("suites", ["hourly", None], False),
         ("isStale", "false", False),
         ("staleDuration", "Infinity", False),
         ("trend", "sideways", False),
@@ -158,3 +161,30 @@ def test_collected_results_keep_each_models_history_diagnostics(
     assert output.err.count("[WARN] bad: discarded history points: 1") == 1
     assert output.err.count("[WARN] good: invalid history data") == 1
     assert "JSON" in output.err
+
+
+@pytest.mark.parametrize("endpoint", ["scores", "history"])
+def test_deeply_nested_response_preserves_cli_error_contract(
+    endpoint: str,
+    deeply_nested_json: bytes,
+    http_responses: dict[str, bytes | Exception],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    set_responses(http_responses, {"name": "bad", "id": "1", "currentScore": 55})
+    url = API_URL if endpoint == "scores" else HISTORY_URL.format(model_id="1")
+    http_responses[url] = deeply_nested_json
+    code = run(["bad", "good"], verbosity=2)
+    output = capsys.readouterr()
+    assert "Traceback" not in output.err
+    if endpoint == "scores":
+        assert code == 1
+        assert output.out == ""
+        assert output.err == "[ERROR] API returned invalid JSON\n"
+    else:
+        assert code == 0
+        assert "bad:  55 (Δ—)  | no data" in output.out
+        assert "good:  55 (Δ+5)  | improved" in output.out
+        assert (
+            output.err
+            == "[WARN] bad: invalid history data (API returned invalid JSON)\n"
+        )

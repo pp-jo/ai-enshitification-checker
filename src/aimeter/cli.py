@@ -6,7 +6,11 @@ from typing import Literal, TypeAlias
 
 from aimeter.api import ApiError, fetch_history, fetch_scores
 from aimeter.config import ConfigError, load_config
-from aimeter.constants import DEFAULT_WATCHED_MODELS, HISTORY_MAX_WORKERS
+from aimeter.constants import (
+    COMBINED_SUITES,
+    DEFAULT_WATCHED_MODELS,
+    HISTORY_MAX_WORKERS,
+)
 from aimeter.format import (
     format_calculations,
     format_diagnostic,
@@ -23,6 +27,7 @@ from aimeter.models import (
     PeriodStats,
     analyze_model,
     compute_period_stats,
+    get_suite_coverage,
 )
 from aimeter.parsing import LeaderboardData
 
@@ -140,6 +145,26 @@ def collect_model_diagnostics(outcome: ModelOutcome, verbosity: int) -> list[str
         return []
 
     diagnostics: list[str] = []
+    if get_suite_coverage(result.suites) == "partial":
+        diagnostics.append(
+            format_diagnostic(
+                "incomplete benchmark suites; changes in the contributing suites "
+                "may affect Δ",
+                name=result.name,
+            )
+        )
+    if result.suites is not None:
+        unknown_suites = [
+            suite for suite in result.suites if suite not in COMBINED_SUITES
+        ]
+        if unknown_suites:
+            diagnostics.append(
+                format_diagnostic(
+                    f"unknown benchmark suites: {', '.join(unknown_suites)}; "
+                    "completeness cannot be determined; aimeter may need an update",
+                    name=result.name,
+                )
+            )
     if verbosity >= 1 and result.current_score is None:
         diagnostics.append(
             format_diagnostic("missing current score", name=result.name, level="INFO")

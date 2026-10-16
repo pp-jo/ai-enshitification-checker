@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 from aimeter.constants import (
+    COMBINED_SUITES,
     LABEL_IMPROVED,
     LABEL_NO_DATA,
     LABEL_STABLE,
@@ -15,6 +16,17 @@ from aimeter.constants import (
 )
 
 Trend: TypeAlias = Literal["up", "down", "stable"]
+SuiteCoverage: TypeAlias = Literal["complete", "partial", "unknown"]
+
+
+def get_suite_coverage(suites: tuple[str, ...] | None) -> SuiteCoverage:
+    """Describe completeness only when every suite is known to this client."""
+    if suites is None:
+        return "unknown"
+    present = set(suites)
+    if not present <= COMBINED_SUITES:
+        return "unknown"
+    return "complete" if present == COMBINED_SUITES else "partial"
 
 
 @dataclass(frozen=True)
@@ -26,6 +38,8 @@ class LeaderboardEntry:
     is_stale: bool | None
     stale_hours: int | None
     stability: float | None
+    coverage: str | None = None
+    suites: tuple[str, ...] | None = None
 
 
 class AnalysisError(ValueError):
@@ -121,6 +135,8 @@ class ModelResult:
     confidence_lower: float | None = None
     confidence_upper: float | None = None
     analysis_error: str | None = None
+    coverage: str | None = None
+    suites: tuple[str, ...] | None = None
 
     @property
     def strong_signal(self) -> bool:
@@ -229,4 +245,6 @@ def analyze_model(
         confidence_lower=confidence_lower,
         confidence_upper=confidence_upper,
         analysis_error=analysis_error,
+        coverage=entry.coverage,
+        suites=entry.suites,
     )

@@ -69,6 +69,23 @@ def _parse_trend(value: object) -> Trend | None:
     return None
 
 
+def _parse_coverage(value: object) -> str | None:
+    if isinstance(value, str):
+        return value.strip() or None
+    return None
+
+
+def _parse_suites(value: object) -> tuple[str, ...] | None:
+    if not isinstance(value, list):
+        return None
+    names: list[str] = []
+    for name in value:
+        if not isinstance(name, str) or not name.strip():
+            return None
+        names.append(name.strip())
+    return tuple(dict.fromkeys(names))
+
+
 def _require_data(payload: object) -> list[object]:
     if not isinstance(payload, dict):
         raise PayloadError("API response is not a JSON object")
@@ -90,6 +107,8 @@ def _parse_entry(
     is_stale = stale_value if isinstance(stale_value, bool) else None
     stale_hours = parse_stale_hours(entry.get("staleDuration"))
     stability = parse_finite_number(entry.get("stability"))
+    coverage = _parse_coverage(entry.get("coverage"))
+    suites = _parse_suites(entry.get("suites"))
 
     for field, parsed in (
         ("id", model_id),
@@ -98,6 +117,8 @@ def _parse_entry(
         ("isStale", is_stale),
         ("staleDuration", stale_hours),
         ("stability", stability),
+        ("coverage", coverage),
+        ("suites", suites),
     ):
         if entry.get(field) is not None and parsed is None:
             warnings.append(f"{name}: invalid {field}; treated as missing")
@@ -110,6 +131,8 @@ def _parse_entry(
         is_stale=is_stale,
         stale_hours=stale_hours,
         stability=stability,
+        coverage=coverage,
+        suites=suites,
     )
 
 

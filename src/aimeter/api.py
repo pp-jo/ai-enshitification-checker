@@ -53,7 +53,7 @@ def _fetch_json(url: str) -> object:
         payload: object = json.loads(
             body.decode("utf-8"), parse_constant=_reject_json_constant
         )
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ApiError("API returned invalid JSON", kind="invalid_response") from exc
 
     if not isinstance(payload, dict):

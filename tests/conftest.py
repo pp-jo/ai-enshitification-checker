@@ -18,6 +18,17 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture
+def deeply_nested_json() -> bytes:
+    return (
+        b'{"success":true,"data":[],"extra":'
+        + b"[" * 10000
+        + b"0"
+        + b"]" * 10000
+        + b"}"
+    )
+
+
+@pytest.fixture
 def leaderboard_fixture() -> LeaderboardData:
     payload = json.loads((FIXTURES / "api_response.json").read_text(encoding="utf-8"))
     return parse_leaderboard(payload)

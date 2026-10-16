@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from aimeter.constants import (
+    COMBINED_SUITES,
     CUMUL_SUM_LABEL,
     CUSUM_ARROWS,
     LABEL_IMPROVED,
@@ -13,7 +14,7 @@ from aimeter.constants import (
     SE_THRESHOLD_SCALE,
     STRONG_SIGNAL_MULTIPLIER,
 )
-from aimeter.models import ModelResult, Trend
+from aimeter.models import ModelResult, Trend, get_suite_coverage
 
 
 def format_header() -> str:
@@ -64,6 +65,14 @@ def format_model_line(result: ModelResult) -> str:
         hours = result.stale_hours
         stale_text = f"stale {hours}h" if hours is not None else "stale"
         parts.append(f"| {stale_text}")
+
+    suite_coverage = get_suite_coverage(result.suites)
+    if suite_coverage == "partial" and result.suites is not None:
+        parts.append(f"| partial: {len(result.suites)}/{len(COMBINED_SUITES)} suites")
+    elif suite_coverage == "unknown" and result.suites is not None:
+        parts.append("| suites: unknown")
+    if result.coverage is not None and suite_coverage != "partial":
+        parts.append(f"| coverage: {result.coverage}")
 
     return "  ".join(parts)
 
@@ -235,6 +244,11 @@ def format_extra_stats(result: ModelResult) -> list[str]:
         parts.append(f"CI (COMBINED 7d): [{confidence_lower}, {confidence_upper}]")
     if result.stability is not None:
         parts.append(f"stability (API): {result.stability:.0f}/100")
+    if result.suites is not None:
+        suites = ", ".join(result.suites) or "none"
+        parts.append(f"suites (API): {suites} ({get_suite_coverage(result.suites)})")
+    if result.coverage is not None:
+        parts.append(f"coverage (API): {result.coverage}")
 
     if not parts:
         return [f"{_INDENT}→ no extra statistics"]

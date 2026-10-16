@@ -37,7 +37,10 @@ def load_config(config_path: str | Path | None = None) -> LoadedConfig:
     )
     try:
         with path.open("rb") as config_file:
-            config = tomllib.load(config_file)
+            try:
+                config = tomllib.load(config_file)
+            except (ValueError, RecursionError) as exc:
+                raise ConfigError(f"Invalid TOML file {path}: {exc}") from exc
     except FileNotFoundError as exc:
         if config_path is None:
             return LoadedConfig(
@@ -49,8 +52,6 @@ def load_config(config_path: str | Path | None = None) -> LoadedConfig:
         raise ConfigError(
             f"Cannot read configuration {path}: {exc.strerror or exc}"
         ) from exc
-    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
-        raise ConfigError(f"Invalid TOML file {path}: {exc}") from exc
 
     models = config.get("watched_models")
     if not isinstance(models, list) or any(
